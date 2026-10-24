@@ -2,16 +2,46 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="#121212"
     android:gravity="center"
     android:orientation="vertical"
-    android:background="#111111">
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/tv_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Диагностика"
+        android:textColor="#FFFFFF"
+        android:textSize="32sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tv_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Нажмите для проверки"
+        android:textColor="#AAAAAA"
+        android:textSize="18sp" />
 
     <Button
         android:id="@+id/btn_flash"
-        android:layout_width="200dp"
-        android:layout_height="200dp"
-        android:text="Включить"
+        android:layout_width="220dp"
+        android:layout_height="220dp"
+        android:layout_marginTop="48dp"
+        android:text="ПРОВЕРИТЬ"
         android:textSize="24sp"
-        android:backgroundTint="#FFD600"
-        android:textColor="#000000"/>
+        android:textStyle="bold"
+        android:textColor="#000000"
+        android:backgroundTint="#00E676" />
+        
+    <TextView
+        android:id="@+id/tv_subtext"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="Проверка камеры, памяти и железа."
+        android:textColor="#666666"
+        android:textSize="14sp" />
 </LinearLayout>
