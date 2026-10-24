@@ -1,19 +1,14 @@
-plugins {
-    id 'com.android.application'
-}
-
+plugins { id 'com.android.application' }
 android {
     namespace 'com.flashlight.app'
     compileSdk 34
-
     defaultConfig {
         applicationId "com.flashlight.app"
         minSdk 24
         targetSdk 34
-        versionCode 2
-        versionName "1.1"
+        versionCode 3
+        versionName "1.2"
     }
-
     signingConfigs {
         release {
             storeFile file("release.keystore")
@@ -22,19 +17,12 @@ android {
             keyPassword "123456"
         }
     }
-
     buildTypes {
-        release {
-            minifyEnabled false
-            signingConfig signingConfigs.release
-        }
+        release { minifyEnabled false; signingConfig signingConfigs.release }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
 }
-
-dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-}
+dependencies { implementation 'androidx.appcompat:appcompat:1.6.1' }

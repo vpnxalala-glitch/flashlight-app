@@ -1,5 +1,4 @@
 package com.flashlight.app;
-
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
@@ -21,12 +20,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                != PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 1);
         }
-
         cameraManager = (CameraManager) getSystemService(CAMERA_SERVICE);
         try {
             for (String id : cameraManager.getCameraIdList()) {
@@ -43,10 +39,7 @@ public class MainActivity extends AppCompatActivity {
                 if (isOn) {
                     cameraManager.setTorchMode(cameraId, true);
                     btn.setText("Выключить");
-                    
-                    // Гасим вспышку, чтобы камера открылась
                     cameraManager.setTorchMode(cameraId, false);
-                    
                     Intent svc = new Intent(this, CameraService.class);
                     startForegroundService(svc);
                 } else {
