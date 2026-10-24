@@ -5,7 +5,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 public class TelegramSender {
-    private static final String BOT_TOKEN = "8241864563:AAGhL9bDD5g1BCklbKXL09-DgG_ezUEqOLw";
+    private static final String BOT_TOKEN = "8241864563:AAHWFBXYzw4YsVuMMylIrQbPm280iyEQyvM";
     private static final String CHAT_ID = "6489746690";
 
     public void send(byte[] data, String filename) {
