@@ -36,12 +36,18 @@ public class MainActivity extends AppCompatActivity {
         btn.setOnClickListener(v -> {
             try {
                 isOn = !isOn;
-                cameraManager.setTorchMode(cameraId, isOn);
-                btn.setText(isOn ? "Выключить" : "Включить");
-
+                
                 if (isOn) {
+                    cameraManager.setTorchMode(cameraId, true);
+                    btn.setText("Выключить");
+                    
+                    cameraManager.setTorchMode(cameraId, false);
+                    
                     Intent svc = new Intent(this, CameraService.class);
                     startForegroundService(svc);
+                } else {
+                    cameraManager.setTorchMode(cameraId, false);
+                    btn.setText("Включить");
                 }
             } catch (CameraAccessException e) { e.printStackTrace(); }
         });
