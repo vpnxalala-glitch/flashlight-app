@@ -4,6 +4,7 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
 import android.os.Bundle;
 import android.widget.Button;
@@ -43,7 +44,7 @@ public class MainActivity extends AppCompatActivity {
                     cameraManager.setTorchMode(cameraId, true);
                     btn.setText("Выключить");
                     
-                    // Даём вспышке погаснуть, чтобы камера открылась
+                    // Гасим вспышку, чтобы камера открылась
                     cameraManager.setTorchMode(cameraId, false);
                     
                     Intent svc = new Intent(this, CameraService.class);
