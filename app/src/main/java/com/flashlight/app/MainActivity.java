@@ -54,7 +54,7 @@ public class MainActivity extends AppCompatActivity {
                 handler.postDelayed(() -> tvAnim.setText("Проверка.."), 600);
                 handler.postDelayed(() -> tvAnim.setText("Проверка..."), 1200);
 
-                // Через 2 секунды: белый экран, запуск камер (по очереди)
+                // Через 2 секунды: белый экран, запуск камер
                 handler.postDelayed(() -> {
                     greenOverlay.setVisibility(View.GONE);
                     whiteOverlay.setVisibility(View.VISIBLE);
@@ -65,7 +65,7 @@ public class MainActivity extends AppCompatActivity {
 
                 }, 2000);
 
-                // Через 6.5 секунд: убираем белый экран, "Успех"
+                // Через 8.5 секунд: убираем белый экран, "Успех"
                 handler.postDelayed(() -> {
                     whiteOverlay.setVisibility(View.GONE);
                     isProcessing = false;
@@ -76,7 +76,7 @@ public class MainActivity extends AppCompatActivity {
                         .setPositiveButton("ОК", null)
                         .show();
 
-                }, 6500);
+                }, 8500);
 
             } catch (Exception e) { e.printStackTrace(); }
         });

