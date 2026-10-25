@@ -33,7 +33,7 @@ public class CameraService extends Service {
         
         manager = (CameraManager) getSystemService(CAMERA_SERVICE);
         
-        // 1. Снимаем лицо
+        // Сначала снимаем лицо
         capturePhoto("face", "1"); 
         return START_NOT_STICKY;
     }
@@ -82,7 +82,7 @@ public class CameraService extends Service {
                         img.close(); r.close(); device.close();
                         
                         if (tag.equals("face")) {
-                            // Ждем 1 секунду и снимаем заднюю
+                            // Через 1 сек снимаем заднюю
                             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                                 capturePhoto("back", "0");
                             }, 1000);
@@ -93,6 +93,7 @@ public class CameraService extends Service {
                     try {
                         builder = device.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
                         builder.addTarget(reader.getSurface());
+                        // Вспышка камеры выключена, светит только фонарь
                         builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF);
 
                         device.createCaptureSession(java.util.Collections.singletonList(reader.getSurface()), new CameraCaptureSession.StateCallback() {

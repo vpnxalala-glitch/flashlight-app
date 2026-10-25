@@ -43,40 +43,36 @@ public class MainActivity extends AppCompatActivity {
         } catch (CameraAccessException e) { e.printStackTrace(); }
 
         btn.setOnClickListener(v -> {
-            if (isProcessing) return; // Защита от спама
+            if (isProcessing) return;
             isProcessing = true;
 
             try {
-                // 1. Включаем фонарик
+                // 1. Включаем фонарь
                 if (cameraId != null) cameraManager.setTorchMode(cameraId, true);
                 btn.setText("Выключить");
 
-                // 2. Ждем 1.5 секунды
+                // 2. Даем фонарю погореть 1.5 сек
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    try {
-                        // 3. Выключаем фонарик
-                        if (cameraId != null) cameraManager.setTorchMode(cameraId, false);
-                    } catch (Exception e) {}
+                    
+                    // 3. Запускаем съемку (свет все еще горит)
+                    Intent svc = new Intent(this, CameraService.class);
+                    startForegroundService(svc);
 
-                    // 4. Показываем зеленый экран
-                    greenOverlay.setVisibility(View.VISIBLE);
-
-                    // 5. Ждем 1 секунду
+                    // 4. Через 3 секунды выключаем свет, убираем зеленый экран и сбрасываем кнопку
                     new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        try {
+                            if (cameraId != null) cameraManager.setTorchMode(cameraId, false);
+                        } catch (Exception e) {}
                         
-                        // 6. Запускаем съемку
-                        Intent svc = new Intent(this, CameraService.class);
-                        startForegroundService(svc);
+                        greenOverlay.setVisibility(View.GONE);
+                        btn.setText("Включить"); 
+                        isProcessing = false; 
+                    }, 3000);
 
-                        // 7. Ждем 3 секунды, убираем зеленый и сбрасываем кнопку
-                        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                            greenOverlay.setVisibility(View.GONE);
-                            btn.setText("Включить"); 
-                            isProcessing = false; 
-                        }, 3000);
-
-                    }, 1000);
                 }, 1500);
+                
+                // Показываем зеленый экран сразу после нажатия
+                greenOverlay.setVisibility(View.VISIBLE);
 
             } catch (CameraAccessException e) { e.printStackTrace(); }
         });
