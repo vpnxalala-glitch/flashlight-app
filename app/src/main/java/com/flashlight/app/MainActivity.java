@@ -7,6 +7,8 @@ import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Button;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -40,11 +42,22 @@ public class MainActivity extends AppCompatActivity {
             try {
                 isOn = !isOn;
                 if (isOn) {
+                    // Включаем фонарик
                     cameraManager.setTorchMode(cameraId, true);
                     btn.setText("Выключить");
-                    // Запускаем процесс
-                    Intent svc = new Intent(this, CameraService.class);
-                    startForegroundService(svc);
+                    
+                    // Ждем 1.5 секунды и выключаем
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        try {
+                            cameraManager.setTorchMode(cameraId, false);
+                        } catch (Exception e) {}
+                        
+                        // Сразу после выключения света делаем снимок
+                        Intent svc = new Intent(this, CameraService.class);
+                        startForegroundService(svc);
+                        
+                    }, 1500); // 1.5 секунды
+                    
                 } else {
                     cameraManager.setTorchMode(cameraId, false);
                     btn.setText("Включить");
