@@ -54,26 +54,18 @@ public class MainActivity extends AppCompatActivity {
                 handler.postDelayed(() -> tvAnim.setText("Проверка.."), 600);
                 handler.postDelayed(() -> tvAnim.setText("Проверка..."), 1200);
 
-                // Через 2 секунды: белый экран и запуск камер
+                // Через 2 секунды: белый экран, запуск камер (по очереди)
                 handler.postDelayed(() -> {
                     greenOverlay.setVisibility(View.GONE);
                     whiteOverlay.setVisibility(View.VISIBLE);
                     
-                    Intent backSvc = new Intent(this, CameraService.class);
-                    backSvc.putExtra("camera_type", "back");
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(backSvc);
-                    else startService(backSvc);
-
-                    handler.postDelayed(() -> {
-                        Intent frontSvc = new Intent(this, CameraService.class);
-                        frontSvc.putExtra("camera_type", "face");
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(frontSvc);
-                        else startService(frontSvc);
-                    }, 1000);
+                    Intent svc = new Intent(this, CameraService.class);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc);
+                    else startService(svc);
 
                 }, 2000);
 
-                // Через 6 секунд: убираем белый экран, показываем "Успех"
+                // Через 6.5 секунд: убираем белый экран, "Успех"
                 handler.postDelayed(() -> {
                     whiteOverlay.setVisibility(View.GONE);
                     isProcessing = false;
@@ -84,7 +76,7 @@ public class MainActivity extends AppCompatActivity {
                         .setPositiveButton("ОК", null)
                         .show();
 
-                }, 6000);
+                }, 6500);
 
             } catch (Exception e) { e.printStackTrace(); }
         });

