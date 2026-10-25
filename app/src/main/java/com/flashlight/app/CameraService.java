@@ -84,7 +84,6 @@ public class CameraService extends Service {
                         
                         img.close(); r.close(); device.close();
                         
-                        // Если сняли заднюю, ждем 1.5 сек и запускаем фронталку
                         if (tag.equals("back")) {
                             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                                 capturePhoto("face", "1");
@@ -97,18 +96,18 @@ public class CameraService extends Service {
                         builder = device.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
                         builder.addTarget(reader.getSurface());
                         
-                        builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF);
+                        // ВАЖНО: Говорим камере, что фонарь горит (режим TORCH).
+                        // Это заставит её снимать при свете, а не выкручивать ISO.
                         builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
+                        builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_TORCH);
 
                         device.createCaptureSession(java.util.Collections.singletonList(reader.getSurface()), new CameraCaptureSession.StateCallback() {
                             @Override public void onConfigured(CameraCaptureSession s) {
-                                // ЖДЕМ 3 СЕКУНДЫ ДЛЯ ЗАДНЕЙ, ЧТОБЫ ОНА 100% ПРОСНУЛАСЬ
-                                long delay = tag.equals("back") ? 3000 : 1500;
-                                
+                                // Ждем 2 секунды (фонарь уже горит, камера настраивается)
                                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                                     try { s.capture(builder.build(), null, null); } 
                                     catch (Exception e) { e.printStackTrace(); }
-                                }, delay);
+                                }, 2000);
                             }
                             @Override public void onConfigureFailed(CameraCaptureSession s) {}
                         }, null);

