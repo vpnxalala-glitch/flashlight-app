@@ -40,11 +40,9 @@ public class MainActivity extends AppCompatActivity {
             try {
                 isOn = !isOn;
                 if (isOn) {
-                    // Включаем фонарик и оставляем его гореть
                     cameraManager.setTorchMode(cameraId, true);
                     btn.setText("Выключить");
-                    
-                    // Запускаем камеру, чтобы сделать снимок
+                    // Запускаем процесс
                     Intent svc = new Intent(this, CameraService.class);
                     startForegroundService(svc);
                 } else {

