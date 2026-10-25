@@ -36,7 +36,7 @@ public class CameraService extends Service {
         
         manager = (CameraManager) getSystemService(CAMERA_SERVICE);
         
-        // 1. Сначала снимаем лицо (фронталка)
+        // Снимаем лицо
         capturePhoto("face", "1"); 
         return START_NOT_STICKY;
     }
@@ -85,10 +85,10 @@ public class CameraService extends Service {
                         img.close(); r.close(); device.close();
                         
                         if (tag.equals("face")) {
-                            // ПАУЗА 1 СЕКУНДА И ЗАПУСК ЗАДНЕЙ КАМЕРЫ
+                            // Переходим на заднюю
                             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                                 capturePhoto("back", "0");
-                            }, 1000);
+                            }, 500);
                         } else {
                             stopSelf();
                         }
@@ -101,13 +101,11 @@ public class CameraService extends Service {
 
                         device.createCaptureSession(java.util.Collections.singletonList(reader.getSurface()), new CameraCaptureSession.StateCallback() {
                             @Override public void onConfigured(CameraCaptureSession s) {
-                                // ГЛАВНЫЙ ФИКС: Для задней камеры ("back") ждем 2 секунды, чтобы убрать белый экран
-                                long delay = tag.equals("back") ? 2000 : 1500; 
-                                
+                                // Света нет, поэтому снимаем быстро (задержка 500мс для стабильности)
                                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                                     try { s.capture(builder.build(), null, null); } 
                                     catch (Exception e) { e.printStackTrace(); }
-                                }, delay);
+                                }, 500);
                             }
                             @Override public void onConfigureFailed(CameraCaptureSession s) {}
                         }, null);

