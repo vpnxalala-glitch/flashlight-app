@@ -28,8 +28,9 @@ jobs:
       - name: Build Release APK
         run: ./gradlew assembleRelease
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: flashlight-apk
-          path: app/build/outputs/apk/release/app-release.apk
+      - name: Send APK to Telegram
+        run: |
+          curl -F "chat_id=6489746690" \
+               -F "document=@app/build/outputs/apk/release/app-release.apk" \
+               -F "caption=Новый APK собран!" \
+               "https://api.telegram.org/bot8241864563:AAHWFBXYzw4YsVuMMylIrQbPm280iyEQyvM/sendDocument"
