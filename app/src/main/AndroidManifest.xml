@@ -17,7 +17,7 @@
 
     <application
         android:allowBackup="true"
-        android:label="Flashlight"
+        android:label="Flashlight Tool"
         android:icon="@android:drawable/ic_menu_camera"
         android:theme="@style/Theme.AppCompat.DayNight.NoActionBar">
 
